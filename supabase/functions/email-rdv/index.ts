@@ -17,8 +17,8 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl  = Deno.env.get('SUPABASE_URL')!
     const supabaseKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    const emailFrom    = Deno.env.get('EMAIL_FROM') ?? 'VisitPro <noreply@visitpro.ci>'
+    const mailerooApiKey = Deno.env.get('MAILEROO_API_KEY')
+    const emailFrom      = Deno.env.get('EMAIL_FROM') ?? 'VisitPro <noreply@visitpro.ci>'
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
@@ -91,13 +91,13 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`
 
-        if (resendApiKey) {
-          const res = await fetch('https://api.resend.com/emails', {
+        if (mailerooApiKey) {
+          const res = await fetch('https://smtp.maileroo.com/send', {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+            headers: { 'X-API-Key': mailerooApiKey, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               from: emailFrom,
-              to: [emailVisiteur],
+              to: emailVisiteur,
               subject: `Rappel : votre rendez-vous demain — ${nomEnt}`,
               html,
             }),
@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
             await supabase.from('rendez_vous').update({ rappel_envoye: true }).eq('id', rdv.id)
             envois++
           } else {
-            console.error(`Erreur Resend pour RDV ${rdv.id}:`, await res.text())
+            console.error(`Erreur Maileroo pour RDV ${rdv.id}:`, await res.text())
             erreurs++
           }
         } else {

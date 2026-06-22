@@ -10,23 +10,23 @@ interface EmailResult {
 }
 
 export async function envoyerEmail(payload: EmailPayload): Promise<EmailResult> {
-  const apiKey = process.env.RESEND_API_KEY
+  const apiKey = process.env.MAILEROO_API_KEY
   if (!apiKey) {
-    console.warn('RESEND_API_KEY non configurée')
+    console.warn('MAILEROO_API_KEY non configurée')
     return { succes: false, erreur: 'Clé API email manquante' }
   }
 
   try {
     const from = process.env.EMAIL_FROM ?? 'VisitPro <noreply@visitpro.ci>'
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch('https://smtp.maileroo.com/send', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'X-API-Key': apiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         from,
-        to: [payload.destinataire],
+        to: payload.destinataire,
         subject: payload.sujet,
         html: payload.html,
       }),
@@ -34,7 +34,7 @@ export async function envoyerEmail(payload: EmailPayload): Promise<EmailResult> 
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('Erreur Resend:', err)
+      console.error('Erreur Maileroo:', err)
       return { succes: false, erreur: 'Échec envoi email' }
     }
 
