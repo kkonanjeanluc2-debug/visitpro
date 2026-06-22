@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { queryCache } from '@/lib/queryCache'
 import type { Visite } from '@/types'
@@ -30,13 +30,23 @@ export function useVisites(entrepriseId: string | null, filtres: FiltresVisites 
     [entrepriseId, filtres.statut, filtres.dateDebut, filtres.dateFin, filtres.destinataireId, filtres.siteId]
   )
 
-  const [visites, setVisites] = useState<Visite[]>(() => queryCache.get<Visite[]>(cacheKey) ?? [])
-  const [loading, setLoading] = useState(() => !queryCache.has(cacheKey))
+  // Toujours commencer avec état vide (cohérent SSR/client), charger le cache après mount
+  const [visites, setVisites] = useState<Visite[]>([])
+  const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState<string | null>(null)
 
   const chargerRef = useRef<() => void>(() => {})
   const onRealtimeRef = useRef(filtres.onRealtime)
   useEffect(() => { onRealtimeRef.current = filtres.onRealtime }, [filtres.onRealtime])
+
+  // Charger depuis le cache immédiatement après mount (avant le premier paint)
+  useLayoutEffect(() => {
+    const cached = queryCache.get<Visite[]>(cacheKey)
+    if (cached) {
+      setVisites(cached)
+      setLoading(false)
+    }
+  }, [cacheKey])
 
   const charger = useCallback(async () => {
     if (!entrepriseId) return
@@ -76,19 +86,6 @@ export function useVisites(entrepriseId: string | null, filtres: FiltresVisites 
   }, [entrepriseId, filtres.statut, filtres.dateDebut, filtres.dateFin, filtres.destinataireId, filtres.siteId])
 
   useEffect(() => { chargerRef.current = charger }, [charger])
-
-  // Quand le cacheKey change (navigation ou changement de filtre) : afficher le cache instantanément
-  useEffect(() => {
-    const cached = queryCache.get<Visite[]>(cacheKey)
-    if (cached) {
-      setVisites(cached)
-      setLoading(false)
-    } else {
-      setLoading(true)
-    }
-  }, [cacheKey])
-
-  // Toujours rafraîchir en arrière-plan
   useEffect(() => { charger() }, [charger])
 
   useEffect(() => {
@@ -118,10 +115,5 @@ export function useVisitesAujourdhui(
 
 export function useVisitesEnAttente(entrepriseId: string | null, destinataireId?: string): VisitesState {
   const today = new Date().toISOString().split('T')[0]
-  return useVisites(entrepriseId, {
-    statut: 'en_attente',
-    dateDebut: today,
-    dateFin: today,
-    destinataireId,
-  })
+  return useVisites(entrepriseId, { statut: 'en_attente', dateDebut: today, dateFin: today, destinataireId })
 }

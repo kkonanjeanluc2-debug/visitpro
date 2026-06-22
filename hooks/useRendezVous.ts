@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { queryCache } from '@/lib/queryCache'
 import type { RendezVous } from '@/types'
@@ -27,11 +27,19 @@ export function useRendezVous(entrepriseId: string | null, filtres: FiltresRdv =
     [entrepriseId, filtres.date, filtres.destinataireId, filtres.statut, filtres.siteId]
   )
 
-  const [rendezVous, setRendezVous] = useState<RendezVous[]>(() => queryCache.get<RendezVous[]>(cacheKey) ?? [])
-  const [loading, setLoading] = useState(() => !queryCache.has(cacheKey))
+  const [rendezVous, setRendezVous] = useState<RendezVous[]>([])
+  const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState<string | null>(null)
 
   const chargerRef = useRef<() => void>(() => {})
+
+  useLayoutEffect(() => {
+    const cached = queryCache.get<RendezVous[]>(cacheKey)
+    if (cached) {
+      setRendezVous(cached)
+      setLoading(false)
+    }
+  }, [cacheKey])
 
   const charger = useCallback(async () => {
     if (!entrepriseId) return
@@ -70,19 +78,6 @@ export function useRendezVous(entrepriseId: string | null, filtres: FiltresRdv =
   }, [entrepriseId, filtres.date, filtres.destinataireId, filtres.statut, filtres.siteId])
 
   useEffect(() => { chargerRef.current = charger }, [charger])
-
-  // Afficher le cache instantanément quand le cacheKey change
-  useEffect(() => {
-    const cached = queryCache.get<RendezVous[]>(cacheKey)
-    if (cached) {
-      setRendezVous(cached)
-      setLoading(false)
-    } else {
-      setLoading(true)
-    }
-  }, [cacheKey])
-
-  // Rafraîchir en arrière-plan
   useEffect(() => { charger() }, [charger])
 
   useEffect(() => {

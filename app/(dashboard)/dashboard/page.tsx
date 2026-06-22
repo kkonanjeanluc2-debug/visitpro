@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { queryCache } from '@/lib/queryCache'
@@ -24,21 +24,30 @@ export default function DashboardPage() {
   const { utilisateur } = useAuth()
   const supabase = createClient()
 
-  // ── Initialisation instantanée depuis le cache localStorage ──────────────
+  // ── États (vides au départ pour cohérence SSR/client) ────────────────────
+  const [visitesEnAttente, setVisitesEnAttente] = useState<Visite[]>([])
+  const [visitesEnCours,   setVisitesEnCours]   = useState<Visite[]>([])
+  const [stats,            setStats]            = useState<DashboardStats>(DEFAULT_STATS)
+  const [loading,          setLoading]          = useState(true)
+  const [collaborateurs,   setCollaborateurs]   = useState<Utilisateur[]>([])
+  const [sites,            setSites]            = useState<Site[]>([])
+
+  // Charger depuis le cache avant le premier paint (client uniquement)
   const initKey = `dash:${utilisateur?.entreprise_id}:${utilisateur?.site_id ?? ''}:today`
-  const initCache = queryCache.get<DashCache>(initKey)
-
-  const [visitesEnAttente, setVisitesEnAttente] = useState<Visite[]>(initCache?.attente ?? [])
-  const [visitesEnCours,   setVisitesEnCours]   = useState<Visite[]>(initCache?.enCours ?? [])
-  const [stats,            setStats]            = useState<DashboardStats>(initCache?.stats ?? DEFAULT_STATS)
-  const [loading,          setLoading]          = useState(!initCache)
-
-  const [collaborateurs, setCollaborateurs] = useState<Utilisateur[]>(() =>
-    queryCache.get<Utilisateur[]>(`collabs:${utilisateur?.id}`) ?? []
-  )
-  const [sites, setSites] = useState<Site[]>(() =>
-    queryCache.get<Site[]>(`sites:${utilisateur?.entreprise_id}`) ?? []
-  )
+  useLayoutEffect(() => {
+    const cached = queryCache.get<DashCache>(initKey)
+    if (cached) {
+      setVisitesEnAttente(cached.attente)
+      setVisitesEnCours(cached.enCours)
+      setStats(cached.stats)
+      setLoading(false)
+    }
+    const cachedCollabs = queryCache.get<Utilisateur[]>(`collabs:${utilisateur?.id}`)
+    if (cachedCollabs) setCollaborateurs(cachedCollabs)
+    const cachedSites = queryCache.get<Site[]>(`sites:${utilisateur?.entreprise_id}`)
+    if (cachedSites) setSites(cachedSites)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [periode,         setPeriode]         = useState<Periode>('today')
   const [dateDebut,       setDateDebut]       = useState('')
