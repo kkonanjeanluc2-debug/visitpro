@@ -10,16 +10,17 @@ interface BadgeVisiteurProps {
   visite: Visite
   entreprise: Entreprise
   numeroIndex: number
+  nomSite?: string
 }
 
-export default function BadgeVisiteur({ visite, entreprise, numeroIndex }: BadgeVisiteurProps) {
+export default function BadgeVisiteur({ visite, entreprise, numeroIndex, nomSite }: BadgeVisiteurProps) {
   const [loading, setLoading] = useState(false)
 
   const handleImprimer = async () => {
     setLoading(true)
     try {
       const numero = genererNumeroVisite(numeroIndex)
-      genererBadgeVisiteur(visite, entreprise, numero)
+      genererBadgeVisiteur(visite, entreprise, numero, nomSite)
 
       // Marquer le badge comme imprimé
       const { createClient } = await import('@/lib/supabase/client')

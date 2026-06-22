@@ -170,6 +170,7 @@ export default function AccueilSecretairePage() {
                   visite={nouvelleVisite}
                   entreprise={entreprise}
                   numeroIndex={visites.length}
+                  nomSite={utilisateur?.site?.nom}
                 />
               )}
               <Button onClick={() => setShowSuccessModal(false)}>

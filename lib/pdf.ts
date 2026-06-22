@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable'
 import type { Visite, Entreprise } from '@/types'
 import { formatDateHeure, formatHeure, formatDuree, libelleStatut, nomComplet } from './utils'
 
-export function genererBadgeVisiteur(visite: Visite, entreprise: Entreprise, numeroVisite: string): void {
+export function genererBadgeVisiteur(visite: Visite, entreprise: Entreprise, numeroVisite: string, nomSite?: string): void {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -18,16 +18,30 @@ export function genererBadgeVisiteur(visite: Visite, entreprise: Entreprise, num
   doc.setFillColor(30, 58, 95)
   doc.rect(0, 0, 148, 22, 'F')
 
-  // Nom entreprise
+  // Nom entreprise (+ site si secrétaire rattaché à un site)
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.text(entreprise.nom.toUpperCase(), 74, 9, { align: 'center' })
+  if (nomSite) {
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.text(entreprise.nom.toUpperCase(), 74, 7, { align: 'center' })
 
-  // Titre BADGE VISITEUR
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.text('BADGE VISITEUR', 74, 16, { align: 'center' })
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(147, 197, 253) // bleu clair
+    doc.text(nomSite.toUpperCase(), 74, 13, { align: 'center' })
+
+    doc.setFontSize(7)
+    doc.setTextColor(200, 220, 240)
+    doc.text('BADGE VISITEUR', 74, 19, { align: 'center' })
+  } else {
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text(entreprise.nom.toUpperCase(), 74, 9, { align: 'center' })
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.text('BADGE VISITEUR', 74, 16, { align: 'center' })
+  }
 
   // Nom du visiteur
   doc.setTextColor(30, 58, 95)
