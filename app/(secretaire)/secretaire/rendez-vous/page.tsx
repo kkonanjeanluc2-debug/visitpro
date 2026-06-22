@@ -1,24 +1,76 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useRendezVousAujourdhui } from '@/hooks/useRendezVous'
 import AgendaJour from '@/components/secretaire/AgendaJour'
 import Card, { CardHeader, CardTitle } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import Select from '@/components/ui/Select'
 import { ConfirmModal } from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
+import { nomComplet } from '@/lib/utils'
+import type { Utilisateur, VisiteResume } from '@/types'
 
 export default function RendezVousPage() {
   const { utilisateur } = useAuth()
-  const { rendezVous, loading, recharger } = useRendezVousAujourdhui(utilisateur?.entreprise_id ?? null, undefined, utilisateur?.site_id ?? undefined)
+  const supabase = createClient()
+
+  const [destinataireFiltreId, setDestinataireFiltreId] = useState<string | undefined>(undefined)
+  const { rendezVous, loading, recharger } = useRendezVousAujourdhui(
+    utilisateur?.entreprise_id ?? null,
+    destinataireFiltreId,
+    utilisateur?.site_id ?? undefined
+  )
+
+  const [collaborateurs, setCollaborateurs] = useState<Utilisateur[]>([])
+  const [visitesParRdv, setVisitesParRdv] = useState<Record<string, VisiteResume>>({})
   const [rdvAnnuler, setRdvAnnuler] = useState<string | null>(null)
   const [loadingAnnulation, setLoadingAnnulation] = useState(false)
-  const supabase = createClient()
+
+  // Charger les collaborateurs pour le filtre
+  useEffect(() => {
+    if (!utilisateur?.entreprise_id) return
+    let q = supabase
+      .from('utilisateurs')
+      .select('id, nom, prenom, poste, role, actif, entreprise_id, created_at')
+      .eq('entreprise_id', utilisateur.entreprise_id)
+      .eq('actif', true)
+      .in('role', ['collaborateur', 'patron', 'admin'])
+      .order('nom')
+    if (utilisateur.site_id) q = q.eq('site_id', utilisateur.site_id)
+    q.then(({ data }) => setCollaborateurs((data as Utilisateur[]) ?? []))
+  }, [utilisateur?.entreprise_id, utilisateur?.site_id])
+
+  // Indicateur "visiteur arrivé" — charger les visites liées aux RDVs du jour
+  useEffect(() => {
+    if (rendezVous.length === 0) { setVisitesParRdv({}); return }
+    const rdvIds = rendezVous.map((r) => r.id)
+    supabase
+      .from('visites')
+      .select('id, rendez_vous_id, statut, heure_arrivee')
+      .in('rendez_vous_id', rdvIds)
+      .then(({ data }) => {
+        const map: Record<string, VisiteResume> = {}
+        for (const v of data ?? []) {
+          if (v.rendez_vous_id) map[v.rendez_vous_id] = { statut: v.statut, heure_arrivee: v.heure_arrivee }
+        }
+        setVisitesParRdv(map)
+      })
+  }, [rendezVous])
 
   const handleTerminer = async (id: string) => {
     await supabase.from('rendez_vous').update({ statut: 'termine' }).eq('id', id)
+    recharger()
+  }
+
+  const handleReporter = async (id: string, nouvelleDate: string, nouvelleHeure: string) => {
+    await supabase.from('rendez_vous').update({
+      statut: 'reporte',
+      date_rdv: nouvelleDate,
+      heure_debut: nouvelleHeure,
+    }).eq('id', id)
     recharger()
   }
 
@@ -57,7 +109,7 @@ export default function RendezVousPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-5">
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
           <p className="text-xs text-blue-600 mt-1">Total</p>
@@ -72,15 +124,38 @@ export default function RendezVousPage() {
         </div>
       </div>
 
+      {/* Filtre par destinataire */}
+      {collaborateurs.length > 1 && (
+        <div className="mb-4">
+          <Select
+            label=""
+            value={destinataireFiltreId ?? ''}
+            onChange={(e) => setDestinataireFiltreId(e.target.value || undefined)}
+            options={[
+              { value: '', label: 'Tous les collaborateurs' },
+              ...collaborateurs.map((c) => ({
+                value: c.id,
+                label: nomComplet(c.nom, c.prenom) + (c.poste ? ` — ${c.poste}` : ''),
+              })),
+            ]}
+          />
+        </div>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>Rendez-vous du {new Date().toLocaleDateString('fr-CI', { weekday: 'long', day: 'numeric', month: 'long' })}</CardTitle>
+          <CardTitle>
+            Rendez-vous du{' '}
+            {new Date().toLocaleDateString('fr-CI', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </CardTitle>
         </CardHeader>
         <AgendaJour
           rendezVous={rendezVous}
           loading={loading}
+          visitesParRdv={visitesParRdv}
           onTerminer={handleTerminer}
           onAnnuler={(id) => setRdvAnnuler(id)}
+          onReporter={handleReporter}
         />
       </Card>
 

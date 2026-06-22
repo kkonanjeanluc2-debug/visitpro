@@ -146,6 +146,11 @@ export interface Notification {
   rdv?: RendezVous
 }
 
+export interface VisiteResume {
+  statut: string
+  heure_arrivee: string
+}
+
 export interface Abonnement {
   id: string
   entreprise_id: string

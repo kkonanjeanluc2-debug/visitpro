@@ -1,15 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import type { RendezVous } from '@/types'
+import type { RendezVous, VisiteResume } from '@/types'
 import { nomComplet, libelleStatut } from '@/lib/utils'
 import Avatar from '@/components/ui/Avatar'
 
 interface AgendaJourProps {
   rendezVous: RendezVous[]
   loading?: boolean
+  visitesParRdv?: Record<string, VisiteResume>
   onAnnuler?: (id: string) => void
   onTerminer?: (id: string) => void
+  onReporter?: (id: string, date: string, heure: string) => void
 }
 
 function statutClasses(statut: string) {
@@ -19,12 +21,28 @@ function statutClasses(statut: string) {
   return 'bg-gray-100 text-gray-600'
 }
 
-function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
+function badgeArrivee(statut: string): { label: string; classes: string } | null {
+  if (statut === 'en_cours' || statut === 'acceptee')
+    return { label: 'En cours', classes: 'bg-green-100 text-green-700 border-green-200' }
+  if (statut === 'en_attente')
+    return { label: 'En attente', classes: 'bg-amber-100 text-amber-700 border-amber-200' }
+  if (statut === 'terminee')
+    return { label: 'Visité', classes: 'bg-gray-100 text-gray-600 border-gray-200' }
+  return null
+}
+
+function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }: {
   rdv: RendezVous
+  visite?: VisiteResume
   onClose: () => void
   onTerminer?: (id: string) => void
   onAnnuler?: (id: string) => void
+  onReporter?: (id: string, date: string, heure: string) => void
 }) {
+  const [showReporterForm, setShowReporterForm] = useState(false)
+  const [reporterDate, setReporterDate] = useState('')
+  const [reporterHeure, setReporterHeure] = useState(rdv.heure_debut)
+
   const nomVisiteur = rdv.visiteur
     ? nomComplet(rdv.visiteur.nom, rdv.visiteur.prenom ?? undefined)
     : rdv.nom_visiteur_externe ?? 'Visiteur externe'
@@ -37,20 +55,35 @@ function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 
+  const arriveeBadge = visite ? badgeArrivee(visite.statut) : null
+  const todayStr = new Date().toISOString().split('T')[0]
+
+  const headerBg =
+    rdv.statut === 'annule' ? 'bg-red-50' :
+    rdv.statut === 'termine' ? 'bg-gray-50' :
+    rdv.statut === 'reporte' ? 'bg-amber-50' :
+    'bg-primary/5'
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Overlay */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Panel */}
       <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header coloré */}
-        <div className={`px-5 pt-5 pb-4 ${rdv.statut === 'annule' ? 'bg-red-50' : rdv.statut === 'termine' ? 'bg-gray-50' : 'bg-primary/5'}`}>
+        {/* Header */}
+        <div className={`px-5 pt-5 pb-4 ${headerBg}`}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full mb-2 ${statutClasses(rdv.statut)}`}>
-                {libelleStatut(rdv.statut)}
-              </span>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full ${statutClasses(rdv.statut)}`}>
+                  {libelleStatut(rdv.statut)}
+                </span>
+                {arriveeBadge && (
+                  <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${arriveeBadge.classes}`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                    {arriveeBadge.label}
+                  </span>
+                )}
+              </div>
               <h2 className="text-lg font-bold text-gray-900 leading-tight">{rdv.titre}</h2>
               <p className="text-sm text-gray-500 mt-0.5 capitalize">{dateLabel}</p>
             </div>
@@ -61,7 +94,6 @@ function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
             </button>
           </div>
 
-          {/* Horaire */}
           <div className="flex items-center gap-2 mt-3">
             <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -74,14 +106,29 @@ function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
 
         {/* Corps */}
         <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+          {/* Indicateur arrivée */}
+          {visite && arriveeBadge && (
+            <div className={`flex items-center gap-3 p-3 rounded-xl border ${arriveeBadge.classes}`}>
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold">Visiteur arrivé</p>
+                {visite.heure_arrivee && (
+                  <p className="text-xs opacity-75">
+                    Entrée à {visite.heure_arrivee.slice(0, 5)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Visiteur */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Visiteur</p>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-bold text-primary">
-                  {nomVisiteur.charAt(0).toUpperCase()}
-                </span>
+                <span className="text-sm font-bold text-primary">{nomVisiteur.charAt(0).toUpperCase()}</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900">{nomVisiteur}</p>
@@ -128,7 +175,6 @@ function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
             </div>
           )}
 
-          {/* Description */}
           {rdv.description && (
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Objet</p>
@@ -136,17 +182,64 @@ function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
             </div>
           )}
 
-          {/* Notes */}
           {rdv.notes && (
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Notes</p>
               <p className="text-sm text-gray-700 leading-relaxed bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{rdv.notes}</p>
             </div>
           )}
+
+          {/* Formulaire reporter */}
+          {showReporterForm && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Reporter à</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Nouvelle date</label>
+                  <input
+                    type="date"
+                    value={reporterDate}
+                    min={todayStr}
+                    onChange={(e) => setReporterDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Nouvelle heure</label>
+                  <input
+                    type="time"
+                    value={reporterHeure}
+                    onChange={(e) => setReporterHeure(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (reporterDate && reporterHeure && onReporter) {
+                      onReporter(rdv.id, reporterDate, reporterHeure)
+                      onClose()
+                    }
+                  }}
+                  disabled={!reporterDate || !reporterHeure}
+                  className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Confirmer le report
+                </button>
+                <button
+                  onClick={() => setShowReporterForm(false)}
+                  className="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
-        {rdv.statut === 'confirme' && (onTerminer || onAnnuler) && (
+        {rdv.statut === 'confirme' && !showReporterForm && (onTerminer || onAnnuler || onReporter) && (
           <div className="px-5 pb-5 pt-2 flex gap-2 border-t border-gray-100">
             {onTerminer && (
               <button
@@ -157,6 +250,17 @@ function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Terminer
+              </button>
+            )}
+            {onReporter && (
+              <button
+                onClick={() => setShowReporterForm(true)}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Reporter
               </button>
             )}
             {onAnnuler && (
@@ -177,7 +281,14 @@ function DetailModal({ rdv, onClose, onTerminer, onAnnuler }: {
   )
 }
 
-export default function AgendaJour({ rendezVous, loading = false, onAnnuler, onTerminer }: AgendaJourProps) {
+export default function AgendaJour({
+  rendezVous,
+  loading = false,
+  visitesParRdv = {},
+  onAnnuler,
+  onTerminer,
+  onReporter,
+}: AgendaJourProps) {
   const [rdvSelectionne, setRdvSelectionne] = useState<RendezVous | null>(null)
 
   if (loading) {
@@ -209,12 +320,17 @@ export default function AgendaJour({ rendezVous, loading = false, onAnnuler, onT
             ? nomComplet(rdv.visiteur.nom, rdv.visiteur.prenom ?? undefined)
             : rdv.nom_visiteur_externe ?? 'Visiteur externe'
 
+          const visite = visitesParRdv[rdv.id]
+          const badge = visite ? badgeArrivee(visite.statut) : null
+
           return (
             <div
               key={rdv.id}
               onClick={() => setRdvSelectionne(rdv)}
               className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer
-                ${rdv.statut === 'annule' ? 'opacity-50 bg-gray-50 border-gray-200' : 'bg-white border-gray-200 hover:border-primary/40 hover:shadow-sm'}
+                ${rdv.statut === 'annule'
+                  ? 'opacity-50 bg-gray-50 border-gray-200'
+                  : 'bg-white border-gray-200 hover:border-primary/40 hover:shadow-sm'}
               `}
             >
               {/* Heure */}
@@ -235,6 +351,13 @@ export default function AgendaJour({ rendezVous, loading = false, onAnnuler, onT
                     {rdv.visiteur?.organisation ?? rdv.organisation_externe}
                   </p>
                 )}
+                {/* Badge arrivée */}
+                {badge && (
+                  <span className={`inline-flex items-center gap-1 text-xs font-semibold mt-1 px-2 py-0.5 rounded-full border ${badge.classes}`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                    {badge.label}
+                  </span>
+                )}
               </div>
 
               {/* Destinataire + statut */}
@@ -247,7 +370,7 @@ export default function AgendaJour({ rendezVous, loading = false, onAnnuler, onT
                 </span>
               </div>
 
-              {/* Actions sur RDV confirmé */}
+              {/* Actions rapides inline */}
               {rdv.statut === 'confirme' && (onTerminer || onAnnuler) && (
                 <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   {onTerminer && (
@@ -274,7 +397,7 @@ export default function AgendaJour({ rendezVous, loading = false, onAnnuler, onT
                   )}
                 </div>
               )}
-              {/* Badge terminé */}
+
               {rdv.statut === 'termine' && (
                 <span className="flex-shrink-0 text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-medium">
                   Terminé
@@ -288,9 +411,11 @@ export default function AgendaJour({ rendezVous, loading = false, onAnnuler, onT
       {rdvSelectionne && (
         <DetailModal
           rdv={rdvSelectionne}
+          visite={visitesParRdv[rdvSelectionne.id]}
           onClose={() => setRdvSelectionne(null)}
           onTerminer={onTerminer}
           onAnnuler={onAnnuler}
+          onReporter={onReporter}
         />
       )}
     </>
