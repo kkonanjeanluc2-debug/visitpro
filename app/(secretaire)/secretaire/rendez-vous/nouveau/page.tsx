@@ -89,21 +89,21 @@ export default function NouveauRdvPage() {
         corps: `Le ${dateRdv} à ${heureDebut} avec ${nomVisiteur}`,
       })
 
-      // Envoyer SMS si téléphone fourni
-      if (telephoneVisiteur) {
+      // Envoyer email de confirmation si adresse fournie
+      if (emailVisiteur) {
         try {
-          await fetch('/api/sms', {
+          await fetch('/api/email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              telephone: telephoneVisiteur,
+              email: emailVisiteur,
               type: 'confirmation_rdv',
               rdvId: rdv.id,
             }),
           })
           setSmsSent(true)
         } catch {
-          // SMS non bloquant
+          // Email non bloquant
         }
       }
 
@@ -179,7 +179,7 @@ export default function NouveauRdvPage() {
                   value={telephoneVisiteur}
                   onChange={(e) => setTelephoneVisiteur(e.target.value)}
                   placeholder="+225 07..."
-                  hint="SMS de confirmation envoyé"
+                  hint="Email de confirmation envoyé si renseigné"
                 />
                 <Input
                   label="Email"
