@@ -14,6 +14,8 @@ interface RendezVousState {
 
 interface FiltresRdv {
   date?: string
+  dateDebut?: string
+  dateFin?: string
   destinataireId?: string
   statut?: string
   siteId?: string
@@ -23,8 +25,8 @@ export function useRendezVous(entrepriseId: string | null, filtres: FiltresRdv =
   const supabase = createClient()
 
   const cacheKey = useMemo(
-    () => `rdv:${entrepriseId}:${filtres.date}:${filtres.destinataireId}:${filtres.statut}:${filtres.siteId}`,
-    [entrepriseId, filtres.date, filtres.destinataireId, filtres.statut, filtres.siteId]
+    () => `rdv:${entrepriseId}:${filtres.date}:${filtres.dateDebut}:${filtres.dateFin}:${filtres.destinataireId}:${filtres.statut}:${filtres.siteId}`,
+    [entrepriseId, filtres.date, filtres.dateDebut, filtres.dateFin, filtres.destinataireId, filtres.statut, filtres.siteId]
   )
 
   const [rendezVous, setRendezVous] = useState<RendezVous[]>([])
@@ -43,7 +45,7 @@ export function useRendezVous(entrepriseId: string | null, filtres: FiltresRdv =
 
   const charger = useCallback(async () => {
     if (!entrepriseId) return
-    const key = `rdv:${entrepriseId}:${filtres.date}:${filtres.destinataireId}:${filtres.statut}:${filtres.siteId}`
+    const key = `rdv:${entrepriseId}:${filtres.date}:${filtres.dateDebut}:${filtres.dateFin}:${filtres.destinataireId}:${filtres.statut}:${filtres.siteId}`
     if (!queryCache.has(key)) setLoading(true)
     setErreur(null)
 
@@ -59,7 +61,12 @@ export function useRendezVous(entrepriseId: string | null, filtres: FiltresRdv =
         .order('date_rdv', { ascending: true })
         .order('heure_debut', { ascending: true })
 
-      if (filtres.date) query = query.eq('date_rdv', filtres.date)
+      if (filtres.date) {
+        query = query.eq('date_rdv', filtres.date)
+      } else {
+        if (filtres.dateDebut) query = query.gte('date_rdv', filtres.dateDebut)
+        if (filtres.dateFin) query = query.lte('date_rdv', filtres.dateFin)
+      }
       if (filtres.destinataireId) query = query.eq('destinataire_id', filtres.destinataireId)
       if (filtres.statut && filtres.statut !== 'tous') query = query.eq('statut', filtres.statut)
       if (filtres.siteId) query = query.eq('site_id', filtres.siteId)
@@ -75,7 +82,7 @@ export function useRendezVous(entrepriseId: string | null, filtres: FiltresRdv =
     } finally {
       setLoading(false)
     }
-  }, [entrepriseId, filtres.date, filtres.destinataireId, filtres.statut, filtres.siteId])
+  }, [entrepriseId, filtres.date, filtres.dateDebut, filtres.dateFin, filtres.destinataireId, filtres.statut, filtres.siteId])
 
   useEffect(() => { chargerRef.current = charger }, [charger])
   useEffect(() => { charger() }, [charger])

@@ -9,6 +9,7 @@ interface AgendaJourProps {
   rendezVous: RendezVous[]
   loading?: boolean
   visitesParRdv?: Record<string, VisiteResume>
+  groupByDate?: boolean
   onAnnuler?: (id: string) => void
   onTerminer?: (id: string) => void
   onReporter?: (id: string, date: string, heure: string) => void
@@ -281,10 +282,22 @@ function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }
   )
 }
 
+function formatDateHeader(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  const today = new Date()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+
+  if (dateStr === today.toISOString().split('T')[0]) return "Aujourd'hui"
+  if (dateStr === tomorrow.toISOString().split('T')[0]) return 'Demain'
+  return d.toLocaleDateString('fr-CI', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
 export default function AgendaJour({
   rendezVous,
   loading = false,
   visitesParRdv = {},
+  groupByDate = false,
   onAnnuler,
   onTerminer,
   onReporter,
@@ -312,100 +325,127 @@ export default function AgendaJour({
     )
   }
 
+  // Grouper par date si demandé
+  const groupes: { date: string; rdvs: RendezVous[] }[] = groupByDate
+    ? Object.entries(
+        rendezVous.reduce<Record<string, RendezVous[]>>((acc, rdv) => {
+          if (!acc[rdv.date_rdv]) acc[rdv.date_rdv] = []
+          acc[rdv.date_rdv].push(rdv)
+          return acc
+        }, {})
+      )
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, rdvs]) => ({ date, rdvs }))
+    : [{ date: '', rdvs: rendezVous }]
+
+  const RdvCard = ({ rdv }: { rdv: RendezVous }) => {
+    const nomVisiteur = rdv.visiteur
+      ? nomComplet(rdv.visiteur.nom, rdv.visiteur.prenom ?? undefined)
+      : rdv.nom_visiteur_externe ?? 'Visiteur externe'
+    const visite = visitesParRdv[rdv.id]
+    const badge = visite ? badgeArrivee(visite.statut) : null
+
+    return (
+      <div
+        onClick={() => setRdvSelectionne(rdv)}
+        className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer
+          ${rdv.statut === 'annule'
+            ? 'opacity-50 bg-gray-50 border-gray-200'
+            : 'bg-white border-gray-200 hover:border-primary/40 hover:shadow-sm'}
+        `}
+      >
+        {/* Heure */}
+        <div className="flex-shrink-0 text-center min-w-[50px]">
+          <p className="text-sm font-bold text-primary">{rdv.heure_debut}</p>
+          {rdv.heure_fin && <p className="text-xs text-gray-400">{rdv.heure_fin}</p>}
+        </div>
+
+        {/* Séparateur vertical */}
+        <div className="w-px bg-primary/20 self-stretch flex-shrink-0" />
+
+        {/* Contenu */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900 truncate">{rdv.titre}</p>
+          <p className="text-xs text-gray-500 truncate mt-0.5">{nomVisiteur}</p>
+          {(rdv.visiteur?.organisation ?? rdv.organisation_externe) && (
+            <p className="text-xs text-gray-400 truncate">
+              {rdv.visiteur?.organisation ?? rdv.organisation_externe}
+            </p>
+          )}
+          {badge && (
+            <span className={`inline-flex items-center gap-1 text-xs font-semibold mt-1 px-2 py-0.5 rounded-full border ${badge.classes}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+              {badge.label}
+            </span>
+          )}
+        </div>
+
+        {/* Destinataire + statut */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {rdv.destinataire && (
+            <Avatar nom={rdv.destinataire.nom} prenom={rdv.destinataire.prenom} size="sm" />
+          )}
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${statutClasses(rdv.statut)}`}>
+            {libelleStatut(rdv.statut)}
+          </span>
+        </div>
+
+        {/* Actions rapides inline (vue jour uniquement) */}
+        {!groupByDate && rdv.statut === 'confirme' && (onTerminer || onAnnuler) && (
+          <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            {onTerminer && (
+              <button
+                onClick={() => onTerminer(rdv.id)}
+                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                title="Marquer comme terminé"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+            )}
+            {onAnnuler && (
+              <button
+                onClick={() => onAnnuler(rdv.id)}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Annuler ce RDV"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
+
+        {rdv.statut === 'termine' && (
+          <span className="flex-shrink-0 text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-medium">
+            Terminé
+          </span>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
-      <div className="space-y-3">
-        {rendezVous.map((rdv) => {
-          const nomVisiteur = rdv.visiteur
-            ? nomComplet(rdv.visiteur.nom, rdv.visiteur.prenom ?? undefined)
-            : rdv.nom_visiteur_externe ?? 'Visiteur externe'
-
-          const visite = visitesParRdv[rdv.id]
-          const badge = visite ? badgeArrivee(visite.statut) : null
-
-          return (
-            <div
-              key={rdv.id}
-              onClick={() => setRdvSelectionne(rdv)}
-              className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer
-                ${rdv.statut === 'annule'
-                  ? 'opacity-50 bg-gray-50 border-gray-200'
-                  : 'bg-white border-gray-200 hover:border-primary/40 hover:shadow-sm'}
-              `}
-            >
-              {/* Heure */}
-              <div className="flex-shrink-0 text-center min-w-[50px]">
-                <p className="text-sm font-bold text-primary">{rdv.heure_debut}</p>
-                {rdv.heure_fin && <p className="text-xs text-gray-400">{rdv.heure_fin}</p>}
+      <div className="space-y-5">
+        {groupes.map(({ date, rdvs }) => (
+          <div key={date || 'all'}>
+            {groupByDate && date && (
+              <div className="flex items-center gap-3 mb-3">
+                <p className="text-xs font-semibold text-gray-500 tracking-wide capitalize whitespace-nowrap">
+                  {formatDateHeader(date)}
+                </p>
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-xs text-gray-400">{rdvs.length} RDV</span>
               </div>
-
-              {/* Séparateur vertical */}
-              <div className="w-px bg-primary/20 self-stretch flex-shrink-0" />
-
-              {/* Contenu */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{rdv.titre}</p>
-                <p className="text-xs text-gray-500 truncate mt-0.5">{nomVisiteur}</p>
-                {(rdv.visiteur?.organisation ?? rdv.organisation_externe) && (
-                  <p className="text-xs text-gray-400 truncate">
-                    {rdv.visiteur?.organisation ?? rdv.organisation_externe}
-                  </p>
-                )}
-                {/* Badge arrivée */}
-                {badge && (
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold mt-1 px-2 py-0.5 rounded-full border ${badge.classes}`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                    {badge.label}
-                  </span>
-                )}
-              </div>
-
-              {/* Destinataire + statut */}
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                {rdv.destinataire && (
-                  <Avatar nom={rdv.destinataire.nom} prenom={rdv.destinataire.prenom} size="sm" />
-                )}
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${statutClasses(rdv.statut)}`}>
-                  {libelleStatut(rdv.statut)}
-                </span>
-              </div>
-
-              {/* Actions rapides inline */}
-              {rdv.statut === 'confirme' && (onTerminer || onAnnuler) && (
-                <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                  {onTerminer && (
-                    <button
-                      onClick={() => onTerminer(rdv.id)}
-                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="Marquer comme terminé"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </button>
-                  )}
-                  {onAnnuler && (
-                    <button
-                      onClick={() => onAnnuler(rdv.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Annuler ce RDV"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {rdv.statut === 'termine' && (
-                <span className="flex-shrink-0 text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-medium">
-                  Terminé
-                </span>
-              )}
+            )}
+            <div className="space-y-3">
+              {rdvs.map((rdv) => <RdvCard key={rdv.id} rdv={rdv} />)}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
 
       {rdvSelectionne && (
