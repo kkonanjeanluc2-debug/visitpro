@@ -67,21 +67,21 @@ function notifierOS(titre: string, corps: string): void {
 interface NotificationsState {
   notifications: Notification[]
   nonLues: number
+  messagesNonLus: number
   loading: boolean
 }
 
 export function useNotifications(utilisateurId: string | null): NotificationsState {
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [messagesNonLus, setMessagesNonLus] = useState(0)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
-  // Demande la permission navigateur au premier montage
   useEffect(() => {
     if (typeof window === 'undefined') return
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
     }
-    // Pré-générer le beep WAV pour qu'il soit prêt
     getBeepUrl()
   }, [])
 
@@ -99,14 +99,26 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
     finally { setLoading(false) }
   }, [utilisateurId])
 
+  const chargerMessagesNonLus = useCallback(async () => {
+    if (!utilisateurId) return
+    const { count } = await supabase
+      .from('messages_visite')
+      .select('id', { count: 'exact', head: true })
+      .eq('destinataire_id', utilisateurId)
+      .eq('lu', false)
+    setMessagesNonLus(count ?? 0)
+  }, [utilisateurId])
+
   const chargerRef = useRef(charger)
   useEffect(() => { chargerRef.current = charger }, [charger])
 
   useEffect(() => {
     if (!utilisateurId) return
     charger()
+    chargerMessagesNonLus()
 
-    const channel = supabase
+    // Canal notifications
+    const channelNotifs = supabase
       .channel(`notifs-${utilisateurId}`)
       .on('postgres_changes', {
         event: 'INSERT',
@@ -121,9 +133,34 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // Canal messages non lus (badge uniquement)
+    const channelMessages = supabase
+      .channel(`msg-nonlus-${utilisateurId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages_visite',
+        filter: `destinataire_id=eq.${utilisateurId}`,
+      }, () => {
+        setMessagesNonLus(prev => prev + 1)
+        jouerSon()
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages_visite',
+        filter: `destinataire_id=eq.${utilisateurId}`,
+      }, () => {
+        chargerMessagesNonLus()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channelNotifs)
+      supabase.removeChannel(channelMessages)
+    }
   }, [utilisateurId])
 
   const nonLues = notifications.filter((n) => !n.lue).length
-  return { notifications, nonLues, loading }
+  return { notifications, nonLues, messagesNonLus, loading }
 }

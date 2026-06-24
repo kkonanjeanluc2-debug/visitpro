@@ -1,7 +1,88 @@
-﻿import { createServerClient } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+// Stockage en mémoire par instance serveur.
+// Sur Vercel (serverless multi-instance) : migrer vers Upstash Redis pour
+// une protection totale. En l'état, limite les abus sur chaque instance.
+
+type RLEntry = { count: number; resetAt: number }
+const rlStore = new Map<string, RLEntry>()
+let lastCleanup = Date.now()
+
+const ROUTES_LIMITEES: Record<string, { limit: number; windowSec: number }> = {
+  '/api/register':    { limit: 5,  windowSec: 3600 },  // 5 inscriptions / heure
+  '/api/email':       { limit: 30, windowSec: 60   },  // 30 emails / minute
+  '/api/sms':         { limit: 10, windowSec: 60   },  // 10 SMS / minute (coût !)
+  '/api/auth/invite': { limit: 20, windowSec: 3600 },  // 20 invitations / heure
+  '/api/sites':       { limit: 60, windowSec: 60   },  // 60 requêtes / minute
+}
+
+function verifierRateLimit(
+  pathname: string,
+  ip: string,
+): { bloque: boolean; retryAfter: number } {
+  const regle = Object.entries(ROUTES_LIMITEES).find(([p]) => pathname.startsWith(p))
+  if (!regle) return { bloque: false, retryAfter: 0 }
+
+  const [route, { limit, windowSec }] = regle
+  const now = Date.now()
+
+  // Nettoyage périodique (toutes les 5 min) pour éviter les fuites mémoire
+  if (now - lastCleanup > 5 * 60 * 1000) {
+    Array.from(rlStore.entries()).forEach(([k, e]) => {
+      if (e.resetAt < now) rlStore.delete(k)
+    })
+    lastCleanup = now
+  }
+
+  const key = `${route}:${ip}`
+  const entry = rlStore.get(key)
+
+  if (!entry || entry.resetAt < now) {
+    rlStore.set(key, { count: 1, resetAt: now + windowSec * 1000 })
+    return { bloque: false, retryAfter: 0 }
+  }
+
+  if (entry.count >= limit) {
+    return { bloque: true, retryAfter: Math.ceil((entry.resetAt - now) / 1000) }
+  }
+
+  entry.count++
+  return { bloque: false, retryAfter: 0 }
+}
+
+// ─── Middleware principal ─────────────────────────────────────────────────────
+
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // ── Routes API : rate limiting uniquement, pas de vérification auth ──────
+  if (pathname.startsWith('/api/')) {
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+      request.headers.get('x-real-ip') ??
+      'unknown'
+
+    const { bloque, retryAfter } = verifierRateLimit(pathname, ip)
+
+    if (bloque) {
+      return NextResponse.json(
+        { erreur: 'Trop de requêtes. Veuillez patienter avant de réessayer.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(retryAfter),
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+    }
+
+    return NextResponse.next()
+  }
+
+  // ── Pages : vérification session + protection par rôle ───────────────────
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -25,12 +106,14 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
+  // Routes publiques — écran d'affichage avec token (accessible sans connexion)
+  // /display/[token] est public ; /display (config admin) nécessite auth
+  if (pathname.startsWith('/display/') && pathname !== '/display') {
+    return NextResponse.next()
+  }
 
-  // Routes publiques
   if (pathname === '/login' || pathname === '/register' || pathname === '/') {
     if (user) {
-      // Utilisateur connecté sur page publique → rediriger selon le rôle
       const { data: utilisateur } = await supabase
         .from('utilisateurs')
         .select('role')
@@ -63,7 +146,6 @@ export async function middleware(request: NextRequest) {
   const perms = utilisateur.permissions as Record<string, boolean> | null
   const isResponsableSite = perms?.responsable_site === true
 
-  // Protection par zone
   if (pathname.startsWith('/secretaire') && !['secretaire', 'admin'].includes(role)) {
     return redirectByRole(role, isResponsableSite, request)
   }
@@ -73,6 +155,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith('/admin') && !['admin', 'patron'].includes(role) && !isResponsableSite) {
+    return redirectByRole(role, isResponsableSite, request)
+  }
+
+  const routesAdminPatron = ['/rapports', '/display', '/securite']
+  if (routesAdminPatron.some((r) => pathname.startsWith(r)) && !['admin', 'patron'].includes(role) && !isResponsableSite) {
     return redirectByRole(role, isResponsableSite, request)
   }
 
@@ -88,16 +175,19 @@ function redirectByRole(role: string, isResponsableSite: boolean, request: NextR
     return NextResponse.redirect(new URL('/admin', request.url))
   }
   const map: Record<string, string> = {
-    secretaire: '/secretaire',
+    secretaire:    '/secretaire',
     collaborateur: '/dashboard',
-    patron: '/dashboard',
-    admin: '/admin',
+    patron:        '/dashboard',
+    admin:         '/admin',
   }
-  const dest = map[role] ?? '/login'
-  return NextResponse.redirect(new URL(dest, request.url))
+  return NextResponse.redirect(new URL(map[role] ?? '/login', request.url))
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|sw.js|workbox-|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: [
+    // Routes API (rate limiting)
+    '/api/:path*',
+    // Pages (auth) — exclut les assets statiques
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|sw.js|workbox-|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
-

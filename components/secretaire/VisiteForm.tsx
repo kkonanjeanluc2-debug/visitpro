@@ -7,6 +7,20 @@ import Input, { Textarea } from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import type { Utilisateur, Visiteur, RendezVous } from '@/types'
 import { nomComplet } from '@/lib/utils'
+import { verifierListeNoire } from '@/lib/listeNoire'
+
+const DISPO_EMOJI: Record<string, string> = {
+  disponible:      '🟢',
+  en_reunion:      '🟡',
+  ne_pas_deranger: '🔴',
+  absent:          '⚫',
+}
+
+const DISPO_LABEL: Record<string, string> = {
+  en_reunion:      'En réunion',
+  ne_pas_deranger: 'Ne pas déranger',
+  absent:          'Absent',
+}
 
 interface VisiteFormProps {
   entrepriseId: string
@@ -49,10 +63,42 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
   const [urgence, setUrgence] = useState('normal')
   const [rdvId, setRdvId] = useState('')
   const [loadingCollab, setLoadingCollab] = useState(true)
+  const [blocageListeNoire, setBlocageListeNoire] = useState(false)
+  const [blocageIgnore, setBlocageIgnore] = useState(false)
+  const [showConfirmBlocage, setShowConfirmBlocage] = useState(false)
+  const [responsableBlocage, setResponsableBlocage] = useState<{ nom: string; prenom: string; telephone?: string } | null>(null)
+  const [dispoIgnoree, setDispoIgnoree] = useState(false)
 
   useEffect(() => {
+    if (!entrepriseId) return
+    let cancelled = false
+
     chargerCollaborateurs()
     chargerRdvDuJour()
+
+    // Mise à jour instantanée quand un collaborateur change son statut_dispo
+    const channel = supabase
+      .channel(`collab-dispo-${entrepriseId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'utilisateurs', filter: `entreprise_id=eq.${entrepriseId}` },
+        (payload) => {
+          if (cancelled) return
+          setCollaborateurs((prev) =>
+            prev.map((c) =>
+              c.id === payload.new.id
+                ? { ...c, statut_dispo: payload.new.statut_dispo, dispo_message: payload.new.dispo_message }
+                : c
+            )
+          )
+        }
+      )
+      .subscribe()
+
+    return () => {
+      cancelled = true
+      supabase.removeChannel(channel)
+    }
   }, [entrepriseId])
 
   useEffect(() => {
@@ -69,10 +115,11 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
     setLoadingCollab(true)
     let q = supabase
       .from('utilisateurs')
-      .select('*')
+      .select('*, statut_dispo, dispo_message')
       .eq('entreprise_id', entrepriseId)
       .eq('actif', true)
       .in('role', ['collaborateur', 'patron', 'admin'])
+      .order('statut_dispo')
       .order('nom')
     if (siteId) q = q.eq('site_id', siteId)
 
@@ -121,6 +168,45 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
     setOrganisation(v.organisation ?? '')
     setTelephone(v.telephone ?? '')
     setShowSuggestions(false)
+    checkListeNoire(v.nom, v.prenom ?? '', v.telephone ?? '', v.id)
+  }
+
+  const checkListeNoire = async (nomVal: string, prenomVal: string, telephoneVal: string, visiteurId?: string) => {
+    if (nomVal.length < 2) { setBlocageListeNoire(false); setResponsableBlocage(null); return }
+    try {
+      const res = await fetch('/api/check-liste-noire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entreprise_id: entrepriseId,
+          visiteur_id: visiteurId || undefined,
+          nom: nomVal,
+          prenom: prenomVal || undefined,
+          telephone: telephoneVal || undefined,
+        }),
+      })
+      const data = await res.json()
+      const estBloque = data.interdit === true
+      setBlocageListeNoire(estBloque)
+      setBlocageIgnore(false)
+      setShowConfirmBlocage(false)
+      // Charger le patron pour le bouton "Contacter le responsable"
+      if (estBloque) {
+        const { data: patron } = await supabase
+          .from('utilisateurs')
+          .select('nom, prenom, telephone')
+          .eq('entreprise_id', entrepriseId)
+          .eq('role', 'patron')
+          .eq('actif', true)
+          .limit(1)
+          .maybeSingle()
+        setResponsableBlocage(patron ?? null)
+      } else {
+        setResponsableBlocage(null)
+      }
+    } catch {
+      setBlocageListeNoire(false)
+    }
   }
 
   const lierRdv = (rdvIdSelectionne: string) => {
@@ -141,6 +227,12 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
     e.preventDefault()
     if (!nom.trim() || !destinataireId || !motif.trim()) {
       setErreur('Nom du visiteur, destinataire et motif sont obligatoires')
+      return
+    }
+
+    // Blocage liste noire non confirmé → forcer la confirmation
+    if (blocageListeNoire && !blocageIgnore) {
+      setShowConfirmBlocage(true)
       return
     }
 
@@ -242,6 +334,76 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Alerte discrète restriction d'accès — ne révèle PAS le motif */}
+      {blocageListeNoire && !blocageIgnore && !showConfirmBlocage && (
+        <div className="p-3 bg-amber-50 border-2 border-amber-500 rounded-xl">
+          <div className="flex items-start gap-2 mb-3">
+            <span className="text-lg flex-shrink-0">⚠️</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-amber-900">Attention — Restriction d&apos;accès</p>
+              <p className="text-xs text-amber-800 mt-1">
+                Ce visiteur fait l&apos;objet d&apos;une restriction d&apos;accès.
+                Veuillez contacter discrètement votre responsable avant de procéder.
+              </p>
+              {responsableBlocage && (
+                <p className="text-xs text-amber-700 mt-1 font-medium">
+                  → {nomComplet(responsableBlocage.nom, responsableBlocage.prenom)}
+                  {responsableBlocage.telephone && ` — ${responsableBlocage.telephone}`}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowConfirmBlocage(true)}
+              className="flex-1 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors"
+            >
+              Enregistrer quand même
+            </button>
+            <button
+              type="button"
+              onClick={() => { setBlocageListeNoire(false); setBlocageIgnore(false) }}
+              className="flex-1 py-1.5 border border-amber-400 text-amber-800 text-xs font-medium rounded-lg hover:bg-amber-100 transition-colors"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation avant enregistrement malgré la restriction */}
+      {showConfirmBlocage && (
+        <div className="p-3 bg-red-50 border-2 border-red-400 rounded-xl">
+          <div className="flex items-start gap-2 mb-3">
+            <span className="text-lg flex-shrink-0">🔴</span>
+            <div>
+              <p className="text-sm font-bold text-red-900">Confirmer l&apos;enregistrement ?</p>
+              <p className="text-xs text-red-800 mt-1">
+                Vous êtes sur le point d&apos;enregistrer la visite d&apos;un visiteur sous restriction d&apos;accès.
+                Êtes-vous certain de vouloir continuer ?
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setBlocageIgnore(true); setShowConfirmBlocage(false) }}
+              className="flex-1 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Oui, enregistrer
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowConfirmBlocage(false)}
+              className="flex-1 py-1.5 border border-red-300 text-red-700 text-xs font-medium rounded-lg hover:bg-red-50 transition-colors"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
       {erreur && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
           <p className="text-sm text-red-700">{erreur}</p>
@@ -256,7 +418,12 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
           <Input
             label="Nom *"
             value={nom}
-            onChange={(e) => { setNom(e.target.value); rechercherVisiteurs(e.target.value) }}
+            onChange={(e) => {
+              setNom(e.target.value)
+              rechercherVisiteurs(e.target.value)
+              checkListeNoire(e.target.value, prenom, telephone)
+              setBlocageIgnore(false)
+            }}
             onFocus={() => nom.length >= 2 && setShowSuggestions(suggestions.length > 0)}
             placeholder="Kouamé"
             required
@@ -270,8 +437,14 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
                   onClick={() => selectionnerVisiteur(v)}
                   className="w-full text-left px-3 py-2.5 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                 >
-                  <p className="text-sm font-medium text-gray-900">{nomComplet(v.nom, v.prenom ?? undefined)}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-gray-900">{nomComplet(v.nom, v.prenom ?? undefined)}</p>
+                    {v.est_vip && <span className="text-sm" title="Visiteur VIP">⭐</span>}
+                  </div>
                   {v.organisation && <p className="text-xs text-gray-500">{v.organisation}</p>}
+                  {v.preferences && (
+                    <p className="text-xs text-amber-700 mt-0.5">💛 {v.preferences}</p>
+                  )}
                 </button>
               ))}
             </div>
@@ -314,17 +487,82 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
             <p className="text-xs text-amber-600 mt-0.5">Demandez à l&apos;administrateur de créer des comptes collaborateurs.</p>
           </div>
         ) : (
-          <Select
-            label="Personne à voir *"
-            value={destinataireId}
-            onChange={(e) => setDestinataireId(e.target.value)}
-            options={collaborateurs.map((c) => ({
-              value: c.id,
-              label: `${nomComplet(c.nom, c.prenom)}${c.poste ? ` — ${c.poste}` : ''}`,
-            }))}
-            placeholder="Sélectionner un collaborateur"
-            required
-          />
+          <>
+            <Select
+              label="Personne à voir *"
+              value={destinataireId}
+              onChange={(e) => { setDestinataireId(e.target.value); setDispoIgnoree(false) }}
+              options={collaborateurs.map((c) => {
+                const dispo = (c as any).statut_dispo as string | undefined
+                const emoji = dispo ? (DISPO_EMOJI[dispo] ?? '') : ''
+                const label = `${emoji} ${nomComplet(c.nom, c.prenom)}${c.poste ? ` — ${c.poste}` : ''}`
+                return { value: c.id, label }
+              })}
+              placeholder="Sélectionner un collaborateur"
+              required
+            />
+            {destinataireId && (() => {
+              const collab = collaborateurs.find((c) => c.id === destinataireId)
+              const dispo = (collab as any)?.statut_dispo as string | undefined
+              if (!dispo || dispo === 'disponible') return null
+
+              const msg = (collab as any)?.dispo_message as string | undefined
+              const prenom = collab?.prenom ?? ''
+              const nom = collab?.nom ?? ''
+
+              // En réunion → simple info
+              if (dispo === 'en_reunion') {
+                return (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                    <span className="text-base">🟡</span>
+                    <div>
+                      <p className="text-xs font-semibold text-amber-800">En réunion</p>
+                      {msg && <p className="text-xs text-amber-700 mt-0.5">{msg}</p>}
+                    </div>
+                  </div>
+                )
+              }
+
+              // Ne pas déranger / Absent → alerte avec 2 boutons (sauf si déjà ignorée)
+              if (!dispoIgnoree) {
+                return (
+                  <div className="p-3 bg-amber-50 border-2 border-amber-400 rounded-xl">
+                    <div className="flex items-start gap-2 mb-3">
+                      <span className="text-lg flex-shrink-0">⚠️</span>
+                      <div>
+                        <p className="text-sm font-semibold text-amber-900">
+                          {prenom} {nom} est actuellement indisponible
+                        </p>
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          {DISPO_LABEL[dispo] ?? dispo}{msg ? ` — ${msg}` : ''}
+                        </p>
+                        <p className="text-xs text-amber-700 mt-1">
+                          Souhaitez-vous quand même enregistrer cette visite ?
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDispoIgnoree(true)}
+                        className="flex-1 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors"
+                      >
+                        Enregistrer quand même
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDestinataireId(''); setDispoIgnoree(false) }}
+                        className="flex-1 py-1.5 border border-amber-400 text-amber-800 text-xs font-medium rounded-lg hover:bg-amber-100 transition-colors"
+                      >
+                        Choisir un autre collaborateur
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+              return null
+            })()}
+          </>
         )}
 
         <Textarea

@@ -109,11 +109,17 @@ export default function RendezVousPage() {
     recharger()
   }
 
-  const handleReporter = async (id: string, nouvelleDate: string, nouvelleHeure: string) => {
+  const handleConfirmer = async (id: string) => {
+    await supabase.from('rendez_vous').update({ statut: 'confirme' }).eq('id', id)
+    recharger()
+  }
+
+  const handleReporter = async (id: string, nouvelleDate: string, nouvelleHeure: string, heureFin?: string) => {
     await supabase.from('rendez_vous').update({
       statut: 'reporte',
       date_rdv: nouvelleDate,
       heure_debut: nouvelleHeure,
+      heure_fin: heureFin ?? null,
     }).eq('id', id)
     recharger()
   }
@@ -258,6 +264,7 @@ export default function RendezVousPage() {
           visitesParRdv={visitesParRdv}
           groupByDate={periode !== 'jour'}
           onTerminer={handleTerminer}
+          onConfirmer={handleConfirmer}
           onAnnuler={(id) => setRdvAnnuler(id)}
           onReporter={handleReporter}
         />

@@ -12,7 +12,8 @@ interface AgendaJourProps {
   groupByDate?: boolean
   onAnnuler?: (id: string) => void
   onTerminer?: (id: string) => void
-  onReporter?: (id: string, date: string, heure: string) => void
+  onReporter?: (id: string, date: string, heure: string, heureFin?: string) => void
+  onConfirmer?: (id: string) => void
 }
 
 function statutClasses(statut: string) {
@@ -32,17 +33,19 @@ function badgeArrivee(statut: string): { label: string; classes: string } | null
   return null
 }
 
-function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }: {
+function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter, onConfirmer }: {
   rdv: RendezVous
   visite?: VisiteResume
   onClose: () => void
   onTerminer?: (id: string) => void
   onAnnuler?: (id: string) => void
-  onReporter?: (id: string, date: string, heure: string) => void
+  onReporter?: (id: string, date: string, heure: string, heureFin?: string) => void
+  onConfirmer?: (id: string) => void
 }) {
   const [showReporterForm, setShowReporterForm] = useState(false)
   const [reporterDate, setReporterDate] = useState('')
   const [reporterHeure, setReporterHeure] = useState(rdv.heure_debut)
+  const [reporterHeureFin, setReporterHeureFin] = useState('')
 
   const nomVisiteur = rdv.visiteur
     ? nomComplet(rdv.visiteur.nom, rdv.visiteur.prenom ?? undefined)
@@ -196,7 +199,7 @@ function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }
               <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Reporter à</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Nouvelle date</label>
+                  <label className="block text-xs text-gray-600 mb-1">Nouvelle date *</label>
                   <input
                     type="date"
                     value={reporterDate}
@@ -206,11 +209,20 @@ function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Nouvelle heure</label>
+                  <label className="block text-xs text-gray-600 mb-1">Heure de début *</label>
                   <input
                     type="time"
                     value={reporterHeure}
                     onChange={(e) => setReporterHeure(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Heure de fin</label>
+                  <input
+                    type="time"
+                    value={reporterHeureFin}
+                    onChange={(e) => setReporterHeureFin(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
                 </div>
@@ -219,7 +231,7 @@ function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }
                 <button
                   onClick={() => {
                     if (reporterDate && reporterHeure && onReporter) {
-                      onReporter(rdv.id, reporterDate, reporterHeure)
+                      onReporter(rdv.id, reporterDate, reporterHeure, reporterHeureFin || undefined)
                       onClose()
                     }
                   }}
@@ -239,7 +251,7 @@ function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }
           )}
         </div>
 
-        {/* Actions */}
+        {/* Actions — confirme */}
         {rdv.statut === 'confirme' && !showReporterForm && (onTerminer || onAnnuler || onReporter) && (
           <div className="px-5 pb-5 pt-2 flex gap-2 border-t border-gray-100">
             {onTerminer && (
@@ -277,6 +289,48 @@ function DetailModal({ rdv, visite, onClose, onTerminer, onAnnuler, onReporter }
             )}
           </div>
         )}
+
+        {/* Actions — reporte */}
+        {rdv.statut === 'reporte' && !showReporterForm && (onConfirmer || onReporter || onAnnuler) && (
+          <div className="px-5 pb-5 pt-2 border-t border-gray-100 space-y-2">
+            <p className="text-xs text-amber-700 font-medium">Ce RDV a été reporté — choisissez une action :</p>
+            <div className="flex gap-2">
+              {onConfirmer && (
+                <button
+                  onClick={() => { onConfirmer(rdv.id); onClose() }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Confirmer
+                </button>
+              )}
+              {onReporter && (
+                <button
+                  onClick={() => setShowReporterForm(true)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Re-reporter
+                </button>
+              )}
+              {onAnnuler && (
+                <button
+                  onClick={() => { onAnnuler(rdv.id); onClose() }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Annuler
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -301,6 +355,7 @@ export default function AgendaJour({
   onAnnuler,
   onTerminer,
   onReporter,
+  onConfirmer,
 }: AgendaJourProps) {
   const [rdvSelectionne, setRdvSelectionne] = useState<RendezVous | null>(null)
 
@@ -456,6 +511,7 @@ export default function AgendaJour({
           onTerminer={onTerminer}
           onAnnuler={onAnnuler}
           onReporter={onReporter}
+          onConfirmer={onConfirmer}
         />
       )}
     </>

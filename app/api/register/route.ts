@@ -63,10 +63,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const dateDebut = new Date()
+    const dateFin   = new Date(dateDebut.getTime() + 14 * 24 * 60 * 60 * 1000)
     await admin.from('abonnements').insert({
-      entreprise_id: entreprise.id,
-      plan: 'starter',
-      statut: 'actif',
+      entreprise_id:  entreprise.id,
+      plan:           'pro',
+      statut:         'essai',
+      date_debut:     dateDebut.toISOString(),
+      date_fin_essai: dateFin.toISOString(),
     })
 
     return NextResponse.json({ success: true })

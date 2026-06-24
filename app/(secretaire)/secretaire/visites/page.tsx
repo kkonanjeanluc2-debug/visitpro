@@ -38,9 +38,18 @@ export default function VisitesPage() {
   const { visites, loading } = useVisitesAujourdhui(utilisateur?.entreprise_id ?? null, handleRealtime, siteIdFiltre)
 
   const handleFaireEntrer = async (visiteId: string) => {
+    const visite = visites.find((v) => v.id === visiteId)
+    const now = new Date()
+    const dureeAttente = visite?.heure_arrivee
+      ? Math.round((now.getTime() - new Date(visite.heure_arrivee).getTime()) / 60000)
+      : null
     await supabase
       .from('visites')
-      .update({ statut: 'en_cours', heure_entree: new Date().toISOString() })
+      .update({
+        statut: 'en_cours',
+        heure_entree: now.toISOString(),
+        ...(dureeAttente != null ? { duree_attente: dureeAttente } : {}),
+      })
       .eq('id', visiteId)
   }
 
@@ -129,6 +138,8 @@ export default function VisitesPage() {
                 afficherActions
                 onFaireEntrer={handleFaireEntrer}
                 onTerminer={handleTerminer}
+                nomEntreprise={utilisateur?.entreprise?.nom}
+                utilisateur={utilisateur ?? undefined}
               />
             ))
           )}

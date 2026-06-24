@@ -1,13 +1,37 @@
 ﻿'use client'
 
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import type { Utilisateur, Notification } from '@/types'
+
+const ROUTE_TITRES: { prefix: string; titre: string }[] = [
+  { prefix: '/secretaire/visites',     titre: 'Visites du jour'   },
+  { prefix: '/secretaire/rendez-vous', titre: 'Rendez-vous'       },
+  { prefix: '/secretaire/registre',    titre: 'Registre'          },
+  { prefix: '/secretaire/visiteurs',   titre: 'Fiche visiteur'    },
+  { prefix: '/secretaire/messages',    titre: 'Messages'          },
+  { prefix: '/secretaire',             titre: 'Accueil'           },
+  { prefix: '/dashboard/messages',     titre: 'Messages'          },
+  { prefix: '/dashboard/mes-visites',  titre: 'Mes visites'       },
+  { prefix: '/dashboard/agenda',       titre: 'Mon agenda'        },
+  { prefix: '/dashboard/stats',        titre: 'Statistiques'      },
+  { prefix: '/dashboard/visiteurs',    titre: 'Fiche visiteur'    },
+  { prefix: '/dashboard',              titre: 'Tableau de bord'   },
+  { prefix: '/admin/collaborateurs',   titre: 'Collaborateurs'    },
+  { prefix: '/admin/abonnement',       titre: 'Plans & Tarifs'    },
+  { prefix: '/admin',                  titre: 'Paramètres'        },
+  { prefix: '/securite',               titre: 'Liste noire'       },
+  { prefix: '/rapports',               titre: 'Rapports'          },
+  { prefix: '/display',                titre: "Écran d'accueil"   },
+  { prefix: '/superadmin',             titre: 'Super Admin'       },
+]
 
 import Avatar from '@/components/ui/Avatar'
 import Link from 'next/link'
 import { formatHeure, nomComplet, libelleRole } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import StatutDispo from '@/components/layout/StatutDispo'
+import { useNotifications } from '@/hooks/useNotifications'
 
 interface TopBarProps {
   utilisateur: Utilisateur
@@ -15,7 +39,10 @@ interface TopBarProps {
   titre?: string
 }
 
-export default function TopBar({ utilisateur, notifications = [], titre }: TopBarProps) {
+export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
+  const { notifications, nonLues, messagesNonLus } = useNotifications(utilisateur.id)
+  const pathname = usePathname()
+  const titre = titreProp ?? ROUTE_TITRES.find((r) => pathname.startsWith(r.prefix))?.titre
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [profilModalOpen, setProfilModalOpen] = useState(false)
@@ -33,6 +60,25 @@ export default function TopBar({ utilisateur, notifications = [], titre }: TopBa
   const [saveError, setSaveError] = useState('')
   const [saveOk, setSaveOk] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ─── Messages panel ────────────────────────────────────────────────────────
+  interface MessageThread {
+    visite_id: string
+    visiteurNom: string
+    dernierCorps: string
+    dernierAuteurNom: string
+    estMoi: boolean
+    created_at: string
+    nonLus: number
+  }
+  const [messagesOpen, setMessagesOpen] = useState(false)
+  const [messageThreads, setMessageThreads] = useState<MessageThread[]>([])
+  const [loadingThreads, setLoadingThreads] = useState(false)
+
+  const urlMessages = () =>
+    ['secretaire', 'admin'].includes(utilisateur.role)
+      ? '/secretaire/messages'
+      : '/dashboard/messages'
 
   const ouvrirProfil = () => {
     setEditPrenom(utilisateur.prenom)
@@ -97,7 +143,11 @@ export default function TopBar({ utilisateur, notifications = [], titre }: TopBa
     }
   }
 
-  const nonLues = notifications.filter((n) => !n.lue).length
+  const totalBadge = nonLues + messagesNonLus
+
+  useEffect(() => {
+    document.title = totalBadge > 0 ? `(${totalBadge}) VisitPro` : 'VisitPro'
+  }, [totalBadge])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -113,62 +163,235 @@ export default function TopBar({ utilisateur, notifications = [], titre }: TopBa
       .eq('lue', false)
   }
 
+  const marquerMessagesLus = async () => {
+    if (messagesNonLus === 0) return
+    await supabase
+      .from('messages_visite')
+      .update({ lu: true, lu_at: new Date().toISOString() })
+      .eq('destinataire_id', utilisateur.id)
+      .eq('lu', false)
+  }
+
+  const chargerMessageThreads = useCallback(async () => {
+    setLoadingThreads(true)
+    try {
+      const { data } = await supabase
+        .from('messages_visite')
+        .select(`
+          visite_id, corps, created_at, lu, auteur_id, destinataire_id,
+          auteur:utilisateurs!auteur_id(nom, prenom),
+          visite:visites!visite_id(nom_visiteur, prenom_visiteur)
+        `)
+        .or(`auteur_id.eq.${utilisateur.id},destinataire_id.eq.${utilisateur.id}`)
+        .eq('entreprise_id', utilisateur.entreprise_id)
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      const map: Record<string, MessageThread> = {}
+      for (const m of (data ?? [])) {
+        const vid = m.visite_id as string
+        const auteur = m.auteur as unknown as { nom: string; prenom: string } | null
+        const visite = m.visite as unknown as { nom_visiteur: string; prenom_visiteur?: string } | null
+        if (!map[vid]) {
+          map[vid] = {
+            visite_id: vid,
+            visiteurNom: visite ? `${visite.prenom_visiteur ?? ''} ${visite.nom_visiteur}`.trim() : 'Visiteur',
+            dernierCorps: m.corps,
+            dernierAuteurNom: auteur ? `${auteur.prenom} ${auteur.nom}`.trim() : '',
+            estMoi: m.auteur_id === utilisateur.id,
+            created_at: m.created_at,
+            nonLus: 0,
+          }
+        }
+        if (!m.lu && m.destinataire_id === utilisateur.id) {
+          map[vid].nonLus++
+        }
+      }
+      setMessageThreads(Object.values(map).slice(0, 8))
+    } finally {
+      setLoadingThreads(false)
+    }
+  }, [utilisateur.id, utilisateur.entreprise_id])
+
+  useEffect(() => {
+    if (messagesOpen) chargerMessageThreads()
+  }, [messagesOpen, chargerMessageThreads])
+
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
-      {/* Titre page ou logo mobile */}
+    <header className="h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30"
+      style={{ background: 'linear-gradient(135deg, rgb(var(--color-primary-rgb)) 0%, rgb(var(--color-primary-dark-rgb)) 100%)', boxShadow: '0 2px 12px rgb(var(--color-primary-rgb) / 0.25)' }}
+    >
+
+      {/* Gauche — logo mobile ou titre */}
       <div className="flex items-center gap-3">
         <div className="lg:hidden flex items-center gap-2">
-          <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center">
+          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
             <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
             </svg>
           </div>
-          <span className="font-bold text-primary text-base">VisitPro</span>
+          <span className="font-bold text-white text-base tracking-tight">VisitPro</span>
         </div>
         {titre && (
-          <h1 className="hidden lg:block text-lg font-semibold text-gray-900">{titre}</h1>
+          <h1 className="hidden lg:block text-base font-semibold text-white/90 tracking-tight">{titre}</h1>
         )}
       </div>
 
-      {/* Actions droite */}
-      <div className="flex items-center gap-2">
-        {/* Cloche notifications */}
+      {/* Droite — actions */}
+      <div className="flex items-center gap-1">
+
+        {/* Statut dispo */}
+        {['collaborateur', 'patron'].includes(utilisateur.role) && (
+          <>
+            <StatutDispo utilisateur={utilisateur} />
+            <div className="w-px h-6 bg-white/20 mx-2" />
+          </>
+        )}
+
+        {/* Messagerie */}
         <div className="relative">
           <button
-            onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false); marquerLues() }}
-            className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            onClick={() => {
+              const next = !messagesOpen
+              setMessagesOpen(next)
+              setNotifOpen(false)
+              setProfileOpen(false)
+              if (next) marquerMessagesLus()
+            }}
+            className={`relative p-2 rounded-lg transition-all ${messagesOpen ? 'bg-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+            aria-label="Messages"
+          >
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            {messagesNonLus > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-emerald-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold leading-none">
+                {messagesNonLus > 9 ? '9+' : messagesNonLus}
+              </span>
+            )}
+          </button>
+
+          {messagesOpen && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+              <div className="px-4 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-gray-900">Messages</span>
+                </div>
+                {messagesNonLus > 0 && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">
+                    {messagesNonLus} non lu{messagesNonLus > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
+              <div className="max-h-72 overflow-y-auto scrollbar-thin divide-y divide-gray-50">
+                {loadingThreads ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : messageThreads.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                    <svg className="w-8 h-8 mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    <p className="text-sm">Aucun message</p>
+                  </div>
+                ) : (
+                  messageThreads.map((thread) => (
+                    <Link
+                      key={thread.visite_id}
+                      href={`${urlMessages()}?visite=${thread.visite_id}`}
+                      onClick={() => setMessagesOpen(false)}
+                      className={`block px-4 py-3 hover:bg-gray-50 transition-colors ${thread.nonLus > 0 ? 'bg-emerald-50/40' : ''}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm truncate ${thread.nonLus > 0 ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
+                            {thread.visiteurNom}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">
+                            {thread.estMoi ? 'Vous' : thread.dernierAuteurNom} : {thread.dernierCorps}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className="text-[10px] text-gray-400">{formatHeure(thread.created_at)}</span>
+                          {thread.nonLus > 0 && (
+                            <span className="min-w-[18px] h-[18px] px-1 bg-emerald-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                              {thread.nonLus > 9 ? '9+' : thread.nonLus}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t border-gray-100 px-4 py-2.5">
+                <Link
+                  href={urlMessages()}
+                  onClick={() => setMessagesOpen(false)}
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
+                >
+                  Voir toutes les conversations →
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Cloche */}
+        <div className="relative">
+          <button
+            onClick={() => { setNotifOpen(!notifOpen); setMessagesOpen(false); setProfileOpen(false); marquerLues() }}
+            className={`relative p-2 rounded-lg transition-all ${notifOpen ? 'bg-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
             aria-label="Notifications"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
             {nonLues > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold leading-none">
                 {nonLues > 9 ? '9+' : nonLues}
               </span>
             )}
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-900">Notifications</span>
-                {nonLues > 0 && (
-                  <span className="text-xs text-gray-500">{nonLues} non lue(s)</span>
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+              <div className="px-4 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  <span className="text-sm font-semibold text-gray-900">Notifications</span>
+                </div>
+                {totalBadge > 0 && (
+                  <span className="text-xs bg-red-100 text-red-600 font-semibold px-2 py-0.5 rounded-full">
+                    {totalBadge} non lue{totalBadge > 1 ? 's' : ''}
+                  </span>
                 )}
               </div>
-              <div className="max-h-72 overflow-y-auto scrollbar-thin">
+              <div className="max-h-72 overflow-y-auto scrollbar-thin divide-y divide-gray-50">
                 {notifications.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">Aucune notification</p>
+                  <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                    <svg className="w-8 h-8 mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <p className="text-sm">Aucune notification</p>
+                  </div>
                 ) : (
                   notifications.slice(0, 10).map((n) => (
-                    <div
-                      key={n.id}
-                      className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${!n.lue ? 'bg-blue-50/50' : ''}`}
-                    >
-                      <p className="text-sm font-medium text-gray-900">{n.titre}</p>
-                      {n.corps && <p className="text-xs text-gray-500 mt-0.5">{n.corps}</p>}
-                      <p className="text-xs text-gray-400 mt-1">{formatHeure(n.created_at)}</p>
+                    <div key={n.id} className={`px-4 py-3 hover:bg-gray-50 transition-colors ${!n.lue ? 'bg-blue-50/40 border-l-2 border-primary' : ''}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-900 leading-tight">{n.titre}</p>
+                        {!n.lue && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0 mt-1.5" />}
+                      </div>
+                      {n.corps && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.corps}</p>}
+                      <p className="text-xs text-gray-400 mt-1.5">{formatHeure(n.created_at)}</p>
                     </div>
                   ))
                 )}
@@ -177,57 +400,79 @@ export default function TopBar({ utilisateur, notifications = [], titre }: TopBa
           )}
         </div>
 
+        {/* Séparateur */}
+        <div className="w-px h-6 bg-white/20 mx-1" />
+
         {/* Profil */}
         <div className="relative">
           <button
             onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false) }}
-            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className={`flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl transition-all ${profileOpen ? 'bg-white/20' : 'hover:bg-white/10'}`}
           >
             <Avatar nom={utilisateur.nom} prenom={utilisateur.prenom} photoUrl={utilisateur.photo_url ?? undefined} size="sm" />
-            <span className="hidden md:block text-sm font-medium text-gray-900">
-              {utilisateur.prenom}
-            </span>
-            <svg className="w-4 h-4 text-gray-400 hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="hidden md:block text-left">
+              <p className="text-sm font-semibold text-white leading-tight">{utilisateur.prenom}</p>
+              <p className="text-xs text-white/60 leading-tight">{libelleRole(utilisateur.role)}</p>
+            </div>
+            <svg className={`w-3.5 h-3.5 text-white/60 hidden md:block transition-transform ${profileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-900">{nomComplet(utilisateur.nom, utilisateur.prenom)}</p>
-                <p className="text-xs text-gray-500">{libelleRole(utilisateur.role)}</p>
+            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+              {/* Carte utilisateur */}
+              <div className="px-4 py-4 bg-gradient-to-br from-primary/5 to-primary/10 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <Avatar nom={utilisateur.nom} prenom={utilisateur.prenom} photoUrl={utilisateur.photo_url ?? undefined} size="md" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{nomComplet(utilisateur.nom, utilisateur.prenom)}</p>
+                    <p className="text-xs text-primary font-medium">{libelleRole(utilisateur.role)}</p>
+                    {utilisateur.poste && <p className="text-xs text-gray-500 truncate">{utilisateur.poste}</p>}
+                  </div>
+                </div>
               </div>
-              <div className="py-1">
+
+              {/* Actions */}
+              <div className="py-1.5">
                 {utilisateur.is_super_admin && (
                   <Link
                     href="/superadmin"
                     onClick={() => setProfileOpen(false)}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-accent font-semibold hover:bg-accent/5 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-accent font-semibold hover:bg-accent/5 transition-colors"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                    Espace Super Admin
+                    <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    Super Admin
                   </Link>
                 )}
                 <button
                   onClick={ouvrirProfil}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
                   Mon profil
                 </button>
+              </div>
+
+              <div className="border-t border-gray-100 py-1.5">
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Déconnexion
+                  <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </div>
+                  <span className="font-medium">Déconnexion</span>
                 </button>
               </div>
             </div>
@@ -235,9 +480,9 @@ export default function TopBar({ utilisateur, notifications = [], titre }: TopBa
         </div>
       </div>
 
-      {/* Overlay pour fermer les menus */}
-      {(notifOpen || profileOpen) && (
-        <div className="fixed inset-0 z-40" onClick={() => { setNotifOpen(false); setProfileOpen(false) }} />
+      {/* Overlay fermeture */}
+      {(notifOpen || profileOpen || messagesOpen) && (
+        <div className="fixed inset-0 z-40" onClick={() => { setNotifOpen(false); setProfileOpen(false); setMessagesOpen(false) }} />
       )}
 
       {/* ─── Modal édition profil ──────────────────────────────────────────── */}

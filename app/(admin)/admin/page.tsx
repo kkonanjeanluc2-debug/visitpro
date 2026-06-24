@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import type { Entreprise, Plan, Abonnement, Site, Utilisateur } from '@/types'
 import { PLANS } from '@/types'
-import { formatFcfa, formatDate, libelleRole } from '@/lib/utils'
+import { formatDate, libelleRole } from '@/lib/utils'
+import { applyTheme } from '@/lib/theme'
 import Link from 'next/link'
+import AbonnementSection from '@/components/admin/AbonnementSection'
 
 // ─── Secteurs ────────────────────────────────────────────────────────────────
 const SECTEURS = [
@@ -100,21 +102,30 @@ export default function ParametresPage() {
   const [succesMdp, setSuccesMdp] = useState(false)
   const [showMdp, setShowMdp] = useState(false)
 
-  // Notifications
+  // Notifications — préférences personnelles
   const [notifNavigateur, setNotifNavigateur] = useState(true)
   const [notifEmail, setNotifEmail] = useState(false)
-  const [notifSms, setNotifSms] = useState(false)
   const [notifSon, setNotifSon] = useState(true)
+  // Notifications — config canal entreprise (Maileroo + WhatsApp simple)
+  const [canalNotif, setCanalNotif] = useState<'email' | 'whatsapp_simple' | 'email_et_whatsapp'>('email')
+  const [nomExpediteur, setNomExpediteur] = useState('VisitPro')
+  const [savingNotif, setSavingNotif] = useState(false)
+  const [succesNotif, setSuccesNotif] = useState(false)
+  const [testEmailLoading, setTestEmailLoading] = useState(false)
+  const [testEmailResultat, setTestEmailResultat] = useState<'ok' | 'erreur' | null>(null)
 
   // Apparence
   const [langue, setLangue] = useState('fr')
   const [dateFormat, setDateFormat] = useState('dd/mm/yyyy')
   const [fuseau, setFuseau] = useState('Africa/Abidjan')
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light')
+  const [couleurPrimaire, setCouleurPrimaire] = useState('#1E3A5F')
+  const [couleurAccent, setCouleurAccent] = useState('#1D9E75')
+  const [savingCouleurs, setSavingCouleurs] = useState(false)
+  const [succesCouleurs, setSuccesCouleurs] = useState(false)
 
   // Abonnement
   const [abonnement, setAbonnement] = useState<Abonnement | null>(null)
-  const [paiementLoading, setPaiementLoading] = useState<Plan | null>(null)
   const planActuel = PLANS[(abonnement?.plan ?? entreprise?.plan ?? 'starter') as Plan]
 
   // Sites
@@ -140,6 +151,11 @@ export default function ParametresPage() {
     setFuseau(localStorage.getItem('visitpro-fuseau') ?? 'Africa/Abidjan')
   }, [utilisateur?.entreprise_id])
 
+  // Applique le thème dès que les couleurs changent (prévisualisation en temps réel)
+  useEffect(() => {
+    applyTheme(couleurPrimaire, couleurAccent)
+  }, [couleurPrimaire, couleurAccent])
+
   const appliquerTheme = useCallback((t: 'light' | 'dark' | 'system') => {
     setTheme(t)
     localStorage.setItem('visitpro-theme', t)
@@ -161,21 +177,6 @@ export default function ParametresPage() {
       .limit(1)
       .maybeSingle()
     setAbonnement(data)
-  }
-
-  const initialiserPaiement = async (plan: Plan) => {
-    if (plan === 'starter') return
-    setPaiementLoading(plan)
-    try {
-      const response = await fetch('/api/cinetpay-webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'initier_paiement', plan, entreprise_id: utilisateur!.entreprise_id }),
-      })
-      const data = await response.json()
-      if (data.payment_url) window.open(data.payment_url, '_blank')
-    } catch { alert('Erreur lors de l\'initialisation du paiement') }
-    finally { setPaiementLoading(null) }
   }
 
   // ── Gestion des sites ──────────────────────────────────────────────────────
@@ -259,6 +260,15 @@ export default function ParametresPage() {
       setAdresse(data.adresse ?? '')
       setTelephone(data.telephone ?? '')
       setEmail(data.email ?? '')
+      // Config notifications
+      setCanalNotif(data.canal_notif ?? 'email')
+      setNomExpediteur(data.nom_expediteur ?? 'VisitPro')
+      // Couleurs
+      const prim = data.couleur_primaire ?? '#1E3A5F'
+      const acc  = data.couleur_accent   ?? '#1D9E75'
+      setCouleurPrimaire(prim)
+      setCouleurAccent(acc)
+      applyTheme(prim, acc)
     }
     setLoadingEntreprise(false)
   }
@@ -300,6 +310,11 @@ export default function ParametresPage() {
     return true
   })
 
+  // Pill des onglets settings — py-2.5 + text-sm = 40px, gap-0.5 = 2px
+  const SETTING_H = 40
+  const SETTING_GAP = 2
+  const activeSectionIdx = sectionsVisibles.findIndex((s) => s.id === section)
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -314,14 +329,17 @@ export default function ParametresPage() {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* ─── Navigation latérale ──────────────────────────────────── */}
         <aside className="lg:w-52 flex-shrink-0">
-          {/* Mobile : scroll horizontal */}
+          {/* Mobile : scroll horizontal avec pill animé */}
           <div className="lg:hidden flex gap-2 overflow-x-auto pb-2 scrollbar-none">
             {sectionsVisibles.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSection(s.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                  ${section === s.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200
+                  ${section === s.id
+                    ? 'bg-primary text-white shadow-sm scale-[1.03]'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95'
+                  }`}
               >
                 {s.icon}
                 {s.label}
@@ -329,14 +347,26 @@ export default function ParametresPage() {
             ))}
           </div>
 
-          {/* Desktop : liste verticale */}
-          <nav className="hidden lg:flex flex-col gap-0.5 bg-white border border-gray-200 rounded-2xl p-2">
+          {/* Desktop : liste verticale avec pill glissant */}
+          <nav className="hidden lg:flex relative flex-col gap-0.5 bg-white border border-gray-200 rounded-2xl p-2">
+            {/* Sliding pill — fixed at top:8px, moved via translateY (GPU-accelerated) */}
+            <div
+              aria-hidden
+              className="absolute left-2 right-2 rounded-xl z-0 pointer-events-none"
+              style={{
+                top: 8,
+                height: SETTING_H,
+                transform: `translateY(${activeSectionIdx * (SETTING_H + SETTING_GAP)}px)`,
+                transition: 'transform 280ms cubic-bezier(0.34,1.2,0.64,1)',
+                backgroundColor: 'rgba(30, 58, 95, 0.1)',
+              }}
+            />
             {sectionsVisibles.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSection(s.id)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left w-full
-                  ${section === s.id ? 'bg-primary/10 text-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`relative z-10 flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left w-full
+                  ${section === s.id ? 'text-primary' : 'text-gray-600 hover:text-gray-900'}`}
               >
                 {s.icon}
                 {s.label}
@@ -345,8 +375,8 @@ export default function ParametresPage() {
           </nav>
         </aside>
 
-        {/* ─── Contenu ────────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0">
+        {/* ─── Contenu avec fade-in ──────────────────────────────────── */}
+        <div key={section} className="flex-1 min-w-0 animate-section-in">
 
           {/* ══════ ENTREPRISE ══════ */}
           {section === 'entreprise' && (
@@ -621,94 +651,7 @@ export default function ParametresPage() {
           )}
 
           {/* ══════ ABONNEMENT ══════ */}
-          {section === 'abonnement' && (() => {
-            const planActuelKey = (abonnement?.plan ?? entreprise?.plan ?? 'starter') as Plan
-            const plans = Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]
-            return (
-              <div className="space-y-4">
-                {/* Plan actuel */}
-                {abonnement && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500">Plan actuel</p>
-                      <p className="text-lg font-bold text-primary">{PLANS[planActuelKey].nom}</p>
-                      {abonnement.date_fin && (
-                        <p className="text-xs text-gray-500 mt-0.5">Expire le {formatDate(abonnement.date_fin)}</p>
-                      )}
-                    </div>
-                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">Actif</span>
-                  </div>
-                )}
-
-                {/* Grille des plans */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {plans.map(([planKey, plan]) => {
-                    const estActuel = planKey === planActuelKey
-                    const estPlusCher = plan.prix > PLANS[planActuelKey].prix
-                    return (
-                      <div key={planKey} className={`relative bg-white border-2 rounded-2xl p-5 flex flex-col
-                        ${estActuel ? 'border-primary ring-2 ring-primary/20' : planKey === 'pro' ? 'border-accent' : 'border-gray-200'}`}>
-                        {planKey === 'pro' && (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                            <span className="bg-accent text-white text-xs font-bold px-3 py-1 rounded-full">Recommandé</span>
-                          </div>
-                        )}
-                        <div className="text-center mb-4">
-                          <h3 className="text-sm font-bold text-gray-900">{plan.nom}</h3>
-                          <p className="text-2xl font-bold text-primary mt-1">
-                            {plan.prix === 0 ? 'Gratuit' : formatFcfa(plan.prix)}
-                          </p>
-                          {plan.prix > 0 && <p className="text-xs text-gray-500">/mois</p>}
-                        </div>
-                        <ul className="space-y-1.5 mb-4 flex-1">
-                          {[
-                            { ok: true, label: `${plan.max_utilisateurs ?? '∞'} utilisateur(s)` },
-                            { ok: !plan.max_visites_mois, label: plan.max_visites_mois ? `${plan.max_visites_mois} visites/mois` : 'Visites illimitées' },
-                            { ok: plan.sms, label: 'Confirmations SMS' },
-                            { ok: plan.export_pdf, label: 'Export PDF' },
-                            { ok: plan.multi_sites, label: 'Multi-sites' },
-                          ].map(({ ok, label }) => (
-                            <li key={label} className="flex items-center gap-2 text-xs">
-                              <span className={ok ? 'text-accent font-bold' : 'text-gray-300'}>
-                                {ok ? '✓' : '✕'}
-                              </span>
-                              <span className={ok ? 'text-gray-700' : 'text-gray-400'}>{label}</span>
-                            </li>
-                          ))}
-                        </ul>
-                        {estActuel ? (
-                          <div className="w-full py-2 text-center text-xs font-bold text-primary bg-primary/10 rounded-xl">
-                            Plan actuel
-                          </div>
-                        ) : plan.prix === 0 ? (
-                          <div className="w-full py-2 text-center text-xs text-gray-400">Plan de base</div>
-                        ) : (
-                          <button
-                            onClick={() => initialiserPaiement(planKey)}
-                            disabled={paiementLoading === planKey}
-                            className={`w-full py-2 text-xs font-bold rounded-xl transition-colors text-white disabled:opacity-60
-                              ${planKey === 'pro' ? 'bg-accent hover:bg-accent/90' : 'bg-primary hover:bg-primary/90'}`}>
-                            {paiementLoading === planKey ? 'Redirection…' : estPlusCher ? 'Passer à ce plan' : 'Choisir'}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Modes de paiement */}
-                <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Modes de paiement acceptés</p>
-                  <div className="flex flex-wrap gap-3">
-                    <span className="px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-xs font-bold text-orange-600">Orange Money</span>
-                    <span className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-600">Wave CI</span>
-                    <span className="px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg text-xs font-bold text-purple-600">MTN MoMo</span>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-3">Paiements sécurisés via CinetPay · support@visitpro.ci</p>
-                </div>
-              </div>
-            )
-          })()}
+          {section === 'abonnement' && <AbonnementSection />}
 
           {/* ══════ SÉCURITÉ ══════ */}
           {section === 'securite' && (
@@ -813,10 +756,170 @@ export default function ParametresPage() {
           {/* ══════ NOTIFICATIONS ══════ */}
           {section === 'notifications' && (
             <div className="space-y-4">
-              <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h2 className="text-base font-bold text-gray-900 mb-1">Préférences de notifications</h2>
-                <p className="text-xs text-gray-500 mb-4">Choisissez comment vous souhaitez être alerté.</p>
 
+
+              {/* ── Config Email ────────────────────────────────────────── */}
+              {(canalNotif === 'email' || canalNotif === 'email_et_whatsapp') && (
+                <div className="bg-white border border-gray-200 rounded-2xl p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Configuration Email</h3>
+
+                  {/* Bandeau VisitPro gère l'envoi */}
+                  <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4">
+                    <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-semibold text-blue-800">Emails envoyés automatiquement via VisitPro</p>
+                      <p className="text-xs text-blue-700 mt-0.5">
+                        Aucune configuration requise. Les emails partent depuis{' '}
+                        <span className="font-mono font-medium">noreply@visitpro.ci</span>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {succesNotif && (
+                    <div className="flex items-center gap-2 p-3 mb-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      Configuration enregistrée.
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Nom affiché dans vos emails
+                      </label>
+                      <input
+                        type="text"
+                        value={nomExpediteur}
+                        onChange={(e) => setNomExpediteur(e.target.value)}
+                        placeholder="Cabinet Kouamé & Associés"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1.5">
+                        Vos visiteurs verront :{' '}
+                        <span className="text-gray-600 font-medium">
+                          &ldquo;{nomExpediteur || 'VisitPro'}{nomExpediteur && nomExpediteur !== 'VisitPro' ? ' via VisitPro' : ''}&rdquo;
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-1">
+                      <button
+                        onClick={async () => {
+                          setSavingNotif(true)
+                          await supabase.from('entreprises').update({
+                            canal_notif:    canalNotif,
+                            nom_expediteur: nomExpediteur,
+                          }).eq('id', utilisateur!.entreprise_id)
+                          setSavingNotif(false)
+                          setSuccesNotif(true)
+                          setTimeout(() => setSuccesNotif(false), 3000)
+                        }}
+                        disabled={savingNotif}
+                        className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        {savingNotif ? 'Enregistrement...' : 'Enregistrer'}
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          setTestEmailLoading(true)
+                          setTestEmailResultat(null)
+                          try {
+                            const res = await fetch('/api/test-email', { method: 'POST' })
+                            setTestEmailResultat(res.ok ? 'ok' : 'erreur')
+                          } catch {
+                            setTestEmailResultat('erreur')
+                          } finally {
+                            setTestEmailLoading(false)
+                            setTimeout(() => setTestEmailResultat(null), 5000)
+                          }
+                        }}
+                        disabled={testEmailLoading}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                      >
+                        {testEmailLoading ? (
+                          <span className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            Envoi...
+                          </span>
+                        ) : '📨 Email de test'}
+                      </button>
+
+                      {testEmailResultat === 'ok' && (
+                        <span className="text-xs text-green-600 font-medium">✓ Email envoyé !</span>
+                      )}
+                      {testEmailResultat === 'erreur' && (
+                        <span className="text-xs text-red-600 font-medium">✕ Échec — contacter le support</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Info WhatsApp simple ────────────────────────────────── */}
+              {(canalNotif === 'whatsapp_simple' || canalNotif === 'email_et_whatsapp') && (
+                <div className="bg-[#e9fae3] border border-[#25D366]/30 rounded-2xl p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#25D366] flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 2.099.539 4.073 1.485 5.793L0 24l6.335-1.473A11.955 11.955 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.868 0-3.619-.504-5.12-1.385l-.368-.216-3.763.875.932-3.658-.237-.379A9.955 9.955 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">WhatsApp simple — aucune configuration requise</h3>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        Les boutons WhatsApp apparaissent automatiquement dans l&apos;interface lorsqu&apos;un visiteur a un numéro de téléphone.
+                        Un clic ouvre WhatsApp sur votre téléphone ou ordinateur avec le message pré-rempli.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {['Zéro compte Meta', 'Zéro approbation', 'Zéro coût', 'Fonctionne immédiatement'].map((tag) => (
+                          <span key={tag} className="px-2 py-0.5 bg-white/60 border border-[#25D366]/30 rounded-full text-[11px] font-medium text-[#128C7E]">
+                            ✓ {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Enregistrer le canal si uniquement WA ───────────────── */}
+              {canalNotif === 'whatsapp_simple' && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={async () => {
+                      setSavingNotif(true)
+                      await supabase.from('entreprises')
+                        .update({ canal_notif: canalNotif })
+                        .eq('id', utilisateur!.entreprise_id)
+                      setSavingNotif(false)
+                      setSuccesNotif(true)
+                      setTimeout(() => setSuccesNotif(false), 3000)
+                    }}
+                    disabled={savingNotif}
+                    className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
+                  >
+                    {savingNotif ? 'Enregistrement...' : 'Enregistrer'}
+                  </button>
+                </div>
+              )}
+
+              {succesNotif && canalNotif === 'whatsapp_simple' && (
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Configuration enregistrée.
+                </div>
+              )}
+
+              {/* ── Préférences personnelles ─────────────────────────────── */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Préférences personnelles</h3>
                 <div className="divide-y divide-gray-100">
                   <Toggle
                     checked={notifNavigateur}
@@ -833,43 +936,155 @@ export default function ParametresPage() {
                   <Toggle
                     checked={notifEmail}
                     onChange={setNotifEmail}
-                    label="Notifications par e-mail"
-                    desc="Résumé quotidien des visites et rendez-vous"
-                  />
-                  <Toggle
-                    checked={notifSms}
-                    onChange={setNotifSms}
-                    label="Rappels SMS"
-                    desc={planActuel.sms ? 'Rappels avant les rendez-vous' : 'Disponible sur le plan Pro ou supérieur'}
+                    label="Résumé e-mail quotidien"
+                    desc="Récapitulatif des visites et rendez-vous du jour"
                   />
                 </div>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Événements notifiés</h3>
-                <div className="space-y-2">
-                  {[
-                    { label: 'Nouvelle visite enregistrée', actif: true },
-                    { label: 'Changement de statut d\'une visite', actif: true },
-                    { label: 'Nouveau rendez-vous confirmé', actif: true },
-                    { label: 'Rappel 15 min avant un RDV', actif: planActuel.sms },
-                  ].map(({ label, actif }) => (
-                    <div key={label} className="flex items-center gap-2 text-sm">
-                      <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold
-                        ${actif ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                        {actif ? '✓' : '—'}
-                      </span>
-                      <span className={actif ? 'text-gray-900' : 'text-gray-400'}>{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
           {/* ══════ APPARENCE ══════ */}
           {section === 'apparence' && (
             <div className="space-y-4">
+
+              {/* ── Couleurs de l'entreprise ───────────────────────────── */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-5">
+                <h2 className="text-base font-bold text-gray-900 mb-1">Couleurs de l&apos;application</h2>
+                <p className="text-xs text-gray-500 mb-5">Personnalisez les couleurs de l&apos;interface pour tous les utilisateurs de votre entreprise.</p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+                  {/* Couleur primaire */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-2">Couleur principale</label>
+                    <p className="text-[11px] text-gray-400 mb-2">Sidebar, boutons, liens actifs</p>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <input
+                          type="color"
+                          value={couleurPrimaire}
+                          onChange={(e) => setCouleurPrimaire(e.target.value)}
+                          className="w-14 h-14 rounded-2xl border-2 border-gray-200 cursor-pointer p-0.5 bg-white"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={couleurPrimaire}
+                          onChange={(e) => setCouleurPrimaire(e.target.value)}
+                          maxLength={7}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="#1E3A5F"
+                        />
+                        <div className="mt-1.5 flex gap-1.5 flex-wrap">
+                          {['#1E3A5F','#0F4C81','#2D3748','#7B2D8B','#C0392B','#1A5276'].map((c) => (
+                            <button key={c} title={c}
+                              onClick={() => setCouleurPrimaire(c)}
+                              className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                              style={{ backgroundColor: c, borderColor: couleurPrimaire === c ? '#333' : 'transparent' }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Couleur accent */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-2">Couleur d&apos;accentuation</label>
+                    <p className="text-[11px] text-gray-400 mb-2">Boutons d&apos;action, badges, confirmations</p>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <input
+                          type="color"
+                          value={couleurAccent}
+                          onChange={(e) => setCouleurAccent(e.target.value)}
+                          className="w-14 h-14 rounded-2xl border-2 border-gray-200 cursor-pointer p-0.5 bg-white"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={couleurAccent}
+                          onChange={(e) => setCouleurAccent(e.target.value)}
+                          maxLength={7}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="#1D9E75"
+                        />
+                        <div className="mt-1.5 flex gap-1.5 flex-wrap">
+                          {['#1D9E75','#16A085','#27AE60','#2980B9','#E67E22','#8E44AD'].map((c) => (
+                            <button key={c} title={c}
+                              onClick={() => setCouleurAccent(c)}
+                              className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                              style={{ backgroundColor: c, borderColor: couleurAccent === c ? '#333' : 'transparent' }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Aperçu */}
+                <div className="rounded-xl border border-gray-100 overflow-hidden mb-4">
+                  <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: couleurPrimaire }}>
+                    <div className="w-6 h-6 rounded-lg bg-white/20" />
+                    <div className="flex-1 space-y-1">
+                      <div className="h-1.5 w-20 rounded bg-white/60" />
+                      <div className="h-1 w-14 rounded bg-white/30" />
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-white/20" />
+                  </div>
+                  <div className="flex items-center gap-3 px-4 py-3 bg-white">
+                    <button className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: couleurAccent }}>
+                      Confirmer
+                    </button>
+                    <button className="px-4 py-1.5 rounded-lg text-xs font-medium border-2" style={{ borderColor: couleurPrimaire, color: couleurPrimaire }}>
+                      Voir plus
+                    </button>
+                    <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: couleurAccent }}>
+                      3 nouveaux
+                    </span>
+                  </div>
+                </div>
+
+                {succesCouleurs && (
+                  <div className="flex items-center gap-2 p-3 mb-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    Couleurs appliquées pour toute l&apos;entreprise.
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={async () => {
+                      setSavingCouleurs(true)
+                      await supabase.from('entreprises').update({
+                        couleur_primaire: couleurPrimaire,
+                        couleur_accent:   couleurAccent,
+                      }).eq('id', utilisateur!.entreprise_id)
+                      setSavingCouleurs(false)
+                      setSuccesCouleurs(true)
+                      setTimeout(() => setSuccesCouleurs(false), 3000)
+                    }}
+                    disabled={savingCouleurs}
+                    className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
+                  >
+                    {savingCouleurs ? 'Enregistrement...' : 'Appliquer à toute l\'entreprise'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCouleurPrimaire('#1E3A5F')
+                      setCouleurAccent('#1D9E75')
+                    }}
+                    className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+              </div>
+
               {/* Thème */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5">
                 <h2 className="text-base font-bold text-gray-900 mb-1">Thème</h2>

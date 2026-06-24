@@ -4,29 +4,43 @@ import { useState, useEffect } from 'react'
 import type { Visite } from '@/types'
 import Avatar from '@/components/ui/Avatar'
 import { formatHeure, nomComplet, calculerDureeAttente, formatDuree, couleurUrgence } from '@/lib/utils'
+import MessageVisite from '@/components/shared/MessageVisite'
+import type { Utilisateur } from '@/types'
 
 interface NotifVisiteProps {
   visite: Visite
   isNew?: boolean
+  rang?: number
   onDecision: (visiteId: string, decision: 'acceptee' | 'declinee', note?: string) => void
   onRediriger: (visite: Visite) => void
   onTerminer?: (visiteId: string) => void
+  utilisateur?: Utilisateur
 }
 
-export default function NotifVisite({ visite, isNew = false, onDecision, onRediriger, onTerminer }: NotifVisiteProps) {
-  const [dureeAttente, setDureeAttente] = useState(calculerDureeAttente(visite.heure_arrivee))
+export default function NotifVisite({ visite, isNew = false, rang, onDecision, onRediriger, onTerminer, utilisateur }: NotifVisiteProps) {
+  const enCours = visite.statut === 'en_cours' || visite.statut === 'acceptee'
+  const refTime = enCours && visite.heure_entree ? visite.heure_entree : visite.heure_arrivee
+
+  const [duree, setDuree] = useState(calculerDureeAttente(refTime))
   const [showNote, setShowNote] = useState(false)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showNotesDrawer, setShowNotesDrawer] = useState(false)
+
+  const isVip = visite.visiteur?.est_vip === true
+  const hasNotes = Boolean(visite.visiteur?.notes_privees)
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setDureeAttente(calculerDureeAttente(visite.heure_arrivee))
-    }, 30000)
+    const getRef = () =>
+      (visite.statut === 'en_cours' || visite.statut === 'acceptee') && visite.heure_entree
+        ? visite.heure_entree
+        : visite.heure_arrivee
+    setDuree(calculerDureeAttente(getRef()))
+    const interval = setInterval(() => setDuree(calculerDureeAttente(getRef())), 30000)
     return () => clearInterval(interval)
-  }, [visite.heure_arrivee])
+  }, [visite.heure_arrivee, visite.heure_entree, visite.statut])
 
-  const urgent = dureeAttente > 15
+  const urgent = !enCours && duree > 15
 
   const handleDecision = async (decision: 'acceptee' | 'declinee') => {
     if (decision === 'declinee' && !showNote) {
@@ -39,23 +53,33 @@ export default function NotifVisite({ visite, isNew = false, onDecision, onRedir
   }
 
   return (
+    <>
     <div className={`bg-white border rounded-2xl p-4 shadow-sm transition-all
       ${isNew ? 'animate-fade-in-down border-accent/40 shadow-accent/10 shadow-md' : 'border-gray-200'}
-      ${visite.niveau_urgence === 'vip' ? 'border-yellow-300' : ''}
+      ${isVip ? 'border-yellow-400 bg-yellow-50/20' : visite.niveau_urgence === 'vip' ? 'border-yellow-300' : ''}
     `}>
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <Avatar
-            nom={visite.nom_visiteur}
-            prenom={visite.prenom_visiteur ?? undefined}
-            size="lg"
-            className="flex-shrink-0"
-          />
+          <div className="relative flex-shrink-0">
+            <Avatar
+              nom={visite.nom_visiteur}
+              prenom={visite.prenom_visiteur ?? undefined}
+              size="lg"
+            />
+            {isVip && (
+              <span className="absolute -top-1 -right-1 text-base" title="Visiteur VIP">👑</span>
+            )}
+          </div>
           <div>
-            <p className="font-semibold text-gray-900">
-              {nomComplet(visite.nom_visiteur, visite.prenom_visiteur ?? undefined)}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-gray-900">
+                {nomComplet(visite.nom_visiteur, visite.prenom_visiteur ?? undefined)}
+              </p>
+              {isVip && (
+                <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full border border-yellow-300">VIP</span>
+              )}
+            </div>
             {visite.organisation_visiteur && (
               <p className="text-sm text-gray-500">{visite.organisation_visiteur}</p>
             )}
@@ -64,6 +88,17 @@ export default function NotifVisite({ visite, isNew = false, onDecision, onRedir
         </div>
 
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {rang != null && visite.statut === 'en_attente' && (
+            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+              ${rang === 1 ? 'bg-green-100 text-green-700' :
+                visite.niveau_urgence === 'vip' ? 'bg-yellow-100 text-yellow-700' :
+                visite.niveau_urgence === 'urgent' ? 'bg-orange-100 text-orange-700' :
+                'bg-gray-100 text-gray-600'}`}
+              title={rang === 1 ? 'Prochain dans la file' : `Rang #${rang} dans la file`}
+            >
+              {rang}
+            </span>
+          )}
           {isNew && (
             <span className="px-2 py-0.5 bg-accent text-white text-xs font-bold rounded-full animate-pulse-soft">
               NOUVEAU
@@ -83,9 +118,15 @@ export default function NotifVisite({ visite, isNew = false, onDecision, onRedir
           </svg>
           Arrivé à {formatHeure(visite.heure_arrivee)}
         </span>
-        <span className={`font-bold ${urgent ? 'text-red-600' : 'text-amber-600'}`}>
-          Attend depuis {formatDuree(dureeAttente)}
-        </span>
+        {enCours ? (
+          <span className="font-bold text-green-600">
+            En visite depuis {formatDuree(duree)}
+          </span>
+        ) : (
+          <span className={`font-bold ${urgent ? 'text-red-600 animate-pulse' : 'text-amber-600'}`}>
+            Attend depuis {formatDuree(duree)}
+          </span>
+        )}
         {visite.telephone_visiteur && (
           <span className="flex items-center gap-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,6 +147,34 @@ export default function NotifVisite({ visite, isNew = false, onDecision, onRedir
             placeholder="Raison du déclin (optionnel)"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             autoFocus
+          />
+        </div>
+      )}
+
+      {/* Bouton "Voir les notes" — si notes privées existent */}
+      {hasNotes && (
+        <div className="mt-3">
+          <button
+            onClick={() => setShowNotesDrawer(true)}
+            className="flex items-center gap-1.5 text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            Voir les notes privées
+          </button>
+        </div>
+      )}
+
+      {/* Messagerie interne */}
+      {utilisateur && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <MessageVisite
+            visiteId={visite.id}
+            utilisateur={utilisateur}
+            destinataireId={visite.enregistre_par}
+            compact
           />
         </div>
       )}
@@ -172,5 +241,48 @@ export default function NotifVisite({ visite, isNew = false, onDecision, onRedir
         )}
       </div>
     </div>
+
+    {/* Drawer notes privées */}
+    {showNotesDrawer && (
+      <>
+        <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowNotesDrawer(false)} />
+        <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Notes privées</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {nomComplet(visite.nom_visiteur, visite.prenom_visiteur ?? undefined)}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowNotesDrawer(false)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {visite.visiteur?.preferences && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-xs font-semibold text-amber-800 mb-1">💛 Préférences</p>
+                <p className="text-sm text-amber-700">{visite.visiteur.preferences}</p>
+              </div>
+            )}
+            {visite.visiteur?.notes_privees && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl">
+                <p className="text-xs font-semibold text-purple-800 mb-1">🔒 Notes confidentielles</p>
+                <p className="text-sm text-purple-700 whitespace-pre-wrap">{visite.visiteur.notes_privees}</p>
+              </div>
+            )}
+            {!visite.visiteur?.preferences && !visite.visiteur?.notes_privees && (
+              <p className="text-sm text-gray-400 text-center py-6">Aucune note disponible</p>
+            )}
+          </div>
+        </div>
+      </>
+    )}
+    </>
   )
 }

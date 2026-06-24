@@ -7,8 +7,10 @@ import { useVisitesAujourdhui } from '@/hooks/useVisites'
 import VisiteForm from '@/components/secretaire/VisiteForm'
 import VisiteCard from '@/components/secretaire/VisiteCard'
 import BadgeVisiteur from '@/components/secretaire/BadgeVisiteur'
+import FileAttente from '@/components/dashboard/FileAttente'
 import Card, { CardHeader, CardTitle } from '@/components/ui/Card'
 import type { Visite, Entreprise } from '@/types'
+import { calculerOrdreFile, estimerTempsAttente } from '@/lib/fileAttente'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { nomComplet } from '@/lib/utils'
@@ -17,11 +19,16 @@ export default function AccueilSecretairePage() {
   const { utilisateur } = useAuth()
   const [entreprise, setEntreprise] = useState<Entreprise | null>(null)
   const [filtreStatut, setFiltreStatut] = useState('tous')
+  const [vueMode, setVueMode] = useState<'liste' | 'file'>('liste')
   const [nouvelleVisite, setNouvelleVisite] = useState<Visite | null>(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const supabase = createClient()
 
-  const { visites, loading } = useVisitesAujourdhui(utilisateur?.entreprise_id ?? null)
+  const { visites, loading } = useVisitesAujourdhui(
+    utilisateur?.entreprise_id ?? null,
+    undefined,
+    utilisateur?.site_id ?? undefined
+  )
 
   useEffect(() => {
     if (utilisateur?.entreprise_id) {
@@ -42,17 +49,51 @@ export default function AccueilSecretairePage() {
       .single()
 
     if (data) {
-      setNouvelleVisite(data)
+      // Calculer et sauvegarder ordre_file + temps_attente_estime
+      const ordreFile = await calculerOrdreFile(
+        data.destinataire_id,
+        data.niveau_urgence,
+        data.type_visite,
+      )
+      const tempsEstime = await estimerTempsAttente(data.destinataire_id, ordreFile)
+      await supabase
+        .from('visites')
+        .update({ ordre_file: ordreFile, temps_attente_estime: tempsEstime })
+        .eq('id', visiteId)
+
+      setNouvelleVisite({ ...data, ordre_file: ordreFile, temps_attente_estime: tempsEstime })
       setShowSuccessModal(true)
     }
   }
 
   const handleFaireEntrer = async (visiteId: string) => {
+    const visite = visites.find((v) => v.id === visiteId)
+    const now = new Date()
+    const dureeAttente = visite?.heure_arrivee
+      ? Math.round((now.getTime() - new Date(visite.heure_arrivee).getTime()) / 60000)
+      : null
     await supabase
       .from('visites')
       .update({
         statut: 'en_cours',
-        heure_entree: new Date().toISOString(),
+        heure_entree: now.toISOString(),
+        ...(dureeAttente != null ? { duree_attente: dureeAttente } : {}),
+      })
+      .eq('id', visiteId)
+  }
+
+  const handleTerminer = async (visiteId: string) => {
+    const now = new Date()
+    const visite = visites.find((v) => v.id === visiteId)
+    const dureeVisite = visite?.heure_entree
+      ? Math.round((now.getTime() - new Date(visite.heure_entree).getTime()) / 60000)
+      : null
+    await supabase
+      .from('visites')
+      .update({
+        statut: 'terminee',
+        heure_sortie: now.toISOString(),
+        ...(dureeVisite != null ? { duree_visite: dureeVisite } : {}),
       })
       .eq('id', visiteId)
   }
@@ -109,28 +150,58 @@ export default function AccueilSecretairePage() {
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold text-gray-900">Visites du jour</h2>
-                <span className="text-sm text-gray-500">{visites.length} visite(s)</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">{visites.length} visite(s)</span>
+                  <div className="flex bg-gray-100 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setVueMode('liste')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${vueMode === 'liste' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Liste
+                    </button>
+                    <button
+                      onClick={() => setVueMode('file')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${vueMode === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      File
+                    </button>
+                  </div>
+                </div>
               </div>
-              {/* Filtres */}
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                {FILTRES.map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={() => setFiltreStatut(f.key)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors
-                      ${filtreStatut === f.key
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+              {/* Filtres (seulement en vue liste) */}
+              {vueMode === 'liste' && (
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                  {FILTRES.map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setFiltreStatut(f.key)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors
+                        ${filtreStatut === f.key
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto scrollbar-thin">
-              {loading ? (
+              {/* Vue file d'attente */}
+              {vueMode === 'file' ? (
+                loading ? (
+                  [...Array(3)].map((_, i) => (
+                    <div key={i} className="animate-pulse bg-gray-100 rounded-xl h-16" />
+                  ))
+                ) : (
+                  <FileAttente
+                    visites={visites}
+                    entrepriseId={utilisateur.entreprise_id}
+                  />
+                )
+              ) : loading ? (
                 [...Array(3)].map((_, i) => (
                   <div key={i} className="animate-pulse bg-gray-100 rounded-xl h-24" />
                 ))
@@ -148,6 +219,9 @@ export default function AccueilSecretairePage() {
                     visite={visite}
                     afficherActions
                     onFaireEntrer={handleFaireEntrer}
+                    onTerminer={handleTerminer}
+                    nomEntreprise={entreprise?.nom ?? utilisateur?.entreprise?.nom}
+                    utilisateur={utilisateur ?? undefined}
                   />
                 ))
               )}

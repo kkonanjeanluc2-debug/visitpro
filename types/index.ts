@@ -12,6 +12,7 @@ export type TypeVisite = 'spontanee' | 'rdv' | 'livraison' | 'autre'
 export type NiveauUrgence = 'normal' | 'urgent' | 'vip'
 export type StatutRdv = 'confirme' | 'annule' | 'reporte' | 'termine'
 export type StatutAbonnement = 'actif' | 'expire' | 'suspendu' | 'essai'
+export type StatutDispoType = 'disponible' | 'en_reunion' | 'ne_pas_deranger' | 'absent'
 export type Plan = 'starter' | 'pro' | 'enterprise'
 
 export interface Site {
@@ -36,6 +37,8 @@ export interface Entreprise {
   email?: string
   logo_url?: string
   plan: Plan
+  couleur_primaire?: string
+  couleur_accent?: string
   created_at: string
 }
 
@@ -53,6 +56,9 @@ export interface Utilisateur {
   site_id?: string
   is_super_admin?: boolean
   permissions?: UserPermissions
+  statut_dispo?: StatutDispoType
+  dispo_message?: string
+  dispo_retour_auto?: string
   created_at: string
   entreprise?: Entreprise
   site?: Site
@@ -69,6 +75,10 @@ export interface Visiteur {
   photo_url?: string
   nombre_visites: number
   derniere_visite?: string
+  est_vip?: boolean
+  preferences?: string
+  notes_privees?: string
+  sujets_historique?: string[]
   created_at: string
 }
 
@@ -129,6 +139,52 @@ export interface Visite {
   decision_par_user?: Utilisateur
   rendez_vous?: RendezVous
   duree_attente_calculee?: number
+  sujet_traite?: string
+  ordre_file?: number
+  temps_attente_estime?: number
+}
+
+export interface MessageVisite {
+  id: string
+  visite_id: string
+  entreprise_id: string
+  auteur_id: string
+  destinataire_id?: string
+  corps: string
+  lu?: boolean
+  lu_at?: string
+  created_at: string
+  auteur?: Utilisateur
+}
+
+export interface ListeNoire {
+  id: string
+  entreprise_id: string
+  visiteur_id?: string
+  nom: string
+  prenom?: string
+  telephone?: string
+  email?: string
+  organisation?: string
+  motif: string
+  signale_par: string
+  actif: boolean
+  created_at: string
+  signale_par_user?: Utilisateur
+}
+
+export interface RapportEnvoye {
+  id: string
+  entreprise_id: string
+  periode_debut: string
+  periode_fin: string
+  nb_visites: number
+  nb_acceptees: number
+  nb_declinee: number
+  temps_attente_moyen?: number
+  envoye_a: string[]
+  envoye_at: string
+  created_at: string
 }
 
 export interface Notification {
@@ -182,40 +238,79 @@ export interface DashboardStats {
 
 export interface PlanInfo {
   nom: string
+  tagline: string
   prix: number
+  prix_annuel?: number
   max_utilisateurs: number | null
   max_visites_mois: number | null
   sms: boolean
   export_pdf: boolean
   multi_sites: boolean
+  notifications_realtime: boolean
+  messagerie: boolean
+  rapports: boolean
+  liste_noire: boolean
+  badge_qr: boolean
+  ecran_accueil: boolean
+  api_access: boolean
+  support: 'email' | 'prioritaire'
 }
 
 export const PLANS: Record<Plan, PlanInfo> = {
   starter: {
     nom: 'Starter',
+    tagline: 'Pour démarrer',
     prix: 0,
     max_utilisateurs: 3,
     max_visites_mois: 50,
     sms: false,
     export_pdf: false,
     multi_sites: false,
+    notifications_realtime: true,
+    messagerie: false,
+    rapports: false,
+    liste_noire: false,
+    badge_qr: true,
+    ecran_accueil: false,
+    api_access: false,
+    support: 'email',
   },
   pro: {
     nom: 'Pro',
-    prix: 15000,
-    max_utilisateurs: 15,
+    tagline: 'Idéal pour les PME',
+    prix: 12000,
+    prix_annuel: 120000,
+    max_utilisateurs: 5,
     max_visites_mois: null,
     sms: true,
     export_pdf: true,
     multi_sites: false,
+    notifications_realtime: true,
+    messagerie: false,
+    rapports: true,
+    liste_noire: true,
+    badge_qr: true,
+    ecran_accueil: true,
+    api_access: false,
+    support: 'email',
   },
   enterprise: {
     nom: 'Enterprise',
+    tagline: 'Grandes structures & multi-sites',
     prix: 40000,
+    prix_annuel: 400000,
     max_utilisateurs: null,
     max_visites_mois: null,
     sms: true,
     export_pdf: true,
     multi_sites: true,
+    notifications_realtime: true,
+    messagerie: true,
+    rapports: true,
+    liste_noire: true,
+    badge_qr: true,
+    ecran_accueil: true,
+    api_access: true,
+    support: 'prioritaire',
   },
 }

@@ -57,6 +57,16 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: '/secretaire/messages',
+    label: 'Messages',
+    roles: ['secretaire', 'admin'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+      </svg>
+    ),
+  },
+  {
     href: '/dashboard',
     label: 'Tableau de bord',
     roles: ['collaborateur', 'patron'],
@@ -87,12 +97,52 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: '/dashboard/messages',
+    label: 'Messages',
+    roles: ['collaborateur', 'patron'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+      </svg>
+    ),
+  },
+  {
     href: '/dashboard/stats',
     label: 'Statistiques',
     roles: ['patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/securite',
+    label: 'Liste noire',
+    roles: ['admin', 'patron'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/rapports',
+    label: 'Rapports',
+    roles: ['admin', 'patron'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/display',
+    label: 'Écran d\'accueil',
+    roles: ['admin', 'patron'],
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
       </svg>
     ),
   },
@@ -107,22 +157,17 @@ const navItems: NavItem[] = [
       </svg>
     ),
   },
-  {
-    href: '/admin/abonnement',
-    label: 'Abonnement',
-    roles: ['admin', 'patron'],
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-      </svg>
-    ),
-  },
 ]
 
 interface SidebarProps {
   utilisateur: Utilisateur
   collapsed?: boolean
 }
+
+// Constantes géométriques (py-2.5 + leading-5 = 20+20 = 40px, space-y-1 = 4px gap, py-4 = 16px top)
+const ITEM_H = 40
+const ITEM_GAP = 4
+const NAV_PT = 16
 
 export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps) {
   const pathname = usePathname()
@@ -168,21 +213,50 @@ export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps
   }, [utilisateur.id])
 
   return (
-    <aside className={`hidden lg:flex flex-col bg-white border-r border-gray-200 h-screen sticky top-0 transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'}`}>
+    <aside
+      className={`hidden lg:flex flex-col h-screen sticky top-0 transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'}`}
+      style={{ background: 'linear-gradient(180deg, rgb(var(--color-primary-rgb)) 0%, rgb(var(--color-primary-dark-rgb)) 60%, rgb(var(--color-primary-darker-rgb)) 100%)', boxShadow: '2px 0 12px rgb(var(--color-primary-darker-rgb) / 0.45)' }}
+    >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-gray-200">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+      <div className={`flex items-center gap-3 px-4 h-16 ${collapsed ? 'justify-center' : ''}`}
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+      >
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}
+        >
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
         </div>
         {!collapsed && (
-          <span className="font-bold text-primary text-lg">VisitPro</span>
+          <span className="font-bold text-white text-lg tracking-tight">VisitPro</span>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+      <nav className="relative flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
+        {/* Sliding pill indicator — actif */}
+        {(() => {
+          const activeIdx = items.findIndex((item) =>
+            pathname === item.href ||
+            (item.href !== '/dashboard' && item.href !== '/secretaire' && item.href !== '/admin' && pathname.startsWith(item.href))
+          )
+          if (activeIdx < 0) return null
+          return (
+            <div
+              aria-hidden
+              className="absolute left-3 right-3 rounded-xl z-0 pointer-events-none"
+              style={{
+                top: NAV_PT + activeIdx * (ITEM_H + ITEM_GAP),
+                height: ITEM_H,
+                background: 'rgba(255,255,255,0.12)',
+                borderLeft: '3px solid rgba(255,255,255,0.7)',
+                transition: 'top 280ms cubic-bezier(0.34,1.2,0.64,1)',
+              }}
+            />
+          )
+        })()}
+
         {items.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '/secretaire' && item.href !== '/admin' && pathname.startsWith(item.href))
           return (
@@ -190,21 +264,50 @@ export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+              className={`group relative z-10 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+                transition-all duration-200 ease-out
                 ${isActive
-                  ? 'bg-primary text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  ? 'text-white'
+                  : [
+                      'text-white/55',
+                      'hover:text-white',
+                      'hover:translate-x-1.5',
+                      'hover:bg-white/[0.13]',
+                      'hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_4px_12px_rgba(0,0,0,0.2)]',
+                    ].join(' ')
                 }
                 ${collapsed ? 'justify-center' : ''}
               `}
             >
-              {item.icon}
+              {/* Icône — scale + lueur sur hover */}
+              <span
+                className={`flex-shrink-0 transition-all duration-200 ease-out
+                  ${isActive
+                    ? 'text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.5)]'
+                    : 'text-white/50 group-hover:text-white group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]'
+                  }
+                `}
+              >
+                {item.icon}
+              </span>
+
               {!collapsed && (
-                <span className="flex-1">{item.label}</span>
+                <span className="flex-1 truncate tracking-wide">{item.label}</span>
               )}
+
+              {/* Flèche apparaît au hover */}
+              {!collapsed && !isActive && (
+                <svg
+                  className="w-3.5 h-3.5 text-white/0 group-hover:text-white/50 transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 flex-shrink-0"
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+
               {item.href === '/dashboard/agenda' && rdvCount > 0 && (
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center
-                  ${isActive ? 'bg-white/20 text-white' : 'bg-primary text-white'}
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center transition-transform duration-200 group-hover:scale-110
+                  ${isActive ? 'bg-white/25 text-white' : 'bg-white/20 text-white/80'}
                 `}>
                   {rdvCount}
                 </span>
@@ -214,12 +317,13 @@ export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps
         })}
       </nav>
 
-      {/* Bouton Super Admin */}
+      {/* Super Admin */}
       {utilisateur.is_super_admin && !collapsed && (
         <div className="px-3 pb-2">
           <Link
             href="/superadmin"
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }}
           >
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -230,14 +334,17 @@ export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps
       )}
 
       {/* Profil utilisateur */}
-      <div className={`p-3 border-t border-gray-200 ${collapsed ? 'flex justify-center' : ''}`}>
+      <div
+        className={`p-3 ${collapsed ? 'flex justify-center' : ''}`}
+        style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.15)' }}
+      >
         <div className={`flex items-center gap-3 ${collapsed ? '' : 'px-1'}`}>
           <Avatar nom={utilisateur.nom} prenom={utilisateur.prenom} photoUrl={utilisateur.photo_url ?? undefined} size="sm" />
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{utilisateur.prenom} {utilisateur.nom}</p>
-              <p className="text-xs text-gray-500 truncate">{utilisateur.poste ?? libelleRole(utilisateur.role)}</p>
-              <p className="text-[10px] text-primary/70 font-medium truncate mt-0.5">
+              <p className="text-sm font-semibold text-white truncate">{utilisateur.prenom} {utilisateur.nom}</p>
+              <p className="text-xs text-white/55 truncate">{utilisateur.poste ?? libelleRole(utilisateur.role)}</p>
+              <p className="text-[10px] text-white/40 font-medium truncate mt-0.5">
                 {utilisateur.site?.nom ?? utilisateur.entreprise?.nom ?? ''}
               </p>
             </div>

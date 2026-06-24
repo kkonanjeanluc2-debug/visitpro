@@ -5,7 +5,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { queryCache } from '@/lib/queryCache'
 import NotifVisite from '@/components/dashboard/NotifVisite'
+import FileAttente from '@/components/dashboard/FileAttente'
 import KpiGrid from '@/components/dashboard/KpiGrid'
+import { trierFileAttente } from '@/lib/fileAttente'
 import Modal from '@/components/ui/Modal'
 import Select from '@/components/ui/Select'
 import { nomComplet } from '@/lib/utils'
@@ -54,6 +56,7 @@ export default function DashboardPage() {
   const [dateFin,         setDateFin]         = useState('')
   const [siteSelectionne, setSiteSelectionne] = useState<string>(utilisateur?.site_id ?? '')
   const [redirVisite,     setRedirVisite]     = useState<Visite | null>(null)
+  const [vueFile,         setVueFile]         = useState(false)
   const [nouveauDest,     setNouveauDest]     = useState('')
   const [visitesNouvelles, setVisitesNouvelles] = useState<Set<string>>(new Set())
 
@@ -107,7 +110,9 @@ export default function DashboardPage() {
       .gte('heure_arrivee', today)
       .order('heure_arrivee', { ascending: true })
 
-    if (!isPrimaire && !utilisateur.permissions?.gestion_visites && !utilisateur.permissions?.responsable_site) {
+    // Le dashboard est la vue personnelle : chacun voit uniquement ses propres visiteurs,
+    // sauf les responsables de site / gestionnaires de visites qui voient tout leur périmètre.
+    if (!utilisateur.permissions?.gestion_visites && !utilisateur.permissions?.responsable_site) {
       qAttente = qAttente.eq('destinataire_id', utilisateur.id)
       qEnCours = qEnCours.eq('destinataire_id', utilisateur.id)
     }
@@ -226,7 +231,14 @@ export default function DashboardPage() {
       statut: decision, decision_par: utilisateur!.id,
       decision_at: new Date().toISOString(), note_decision: note ?? null,
     }
-    if (decision === 'acceptee') updates.heure_entree = new Date().toISOString()
+    if (decision === 'acceptee') {
+      const now = new Date()
+      updates.heure_entree = now.toISOString()
+      const visite = visitesEnAttente.find(v => v.id === visiteId)
+      if (visite?.heure_arrivee) {
+        updates.duree_attente = Math.round((now.getTime() - new Date(visite.heure_arrivee).getTime()) / 60000)
+      }
+    }
     await supabase.from('visites').update(updates).eq('id', visiteId)
 
     const visite = visitesEnAttente.find(v => v.id === visiteId)
@@ -260,7 +272,8 @@ export default function DashboardPage() {
   const handleRediriger = async () => {
     if (!redirVisite || !nouveauDest) return
     await supabase.from('visites').update({
-      destinataire_id: nouveauDest, statut: 'redirigee',
+      destinataire_id: nouveauDest,
+      statut: 'en_attente',
       note_decision: `Redirigé par ${nomComplet(utilisateur!.nom, utilisateur!.prenom)}`,
     }).eq('id', redirVisite.id)
     await supabase.from('notifications').insert({
@@ -339,6 +352,19 @@ export default function DashboardPage() {
             )}
           </h2>
           <div className="flex flex-wrap items-center gap-2">
+            {/* Toggle vue file */}
+            {visitesEnAttente.length > 0 && (
+              <div className="flex bg-gray-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setVueFile(false)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${!vueFile ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                >Liste</button>
+                <button
+                  onClick={() => setVueFile(true)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${vueFile ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                >File</button>
+              </div>
+            )}
             {(['today','7j','30j','custom'] as Periode[]).map(p => (
               <button key={p}
                 onClick={() => { setPeriode(p); if (p !== 'custom') { setDateDebut(''); setDateFin('') } }}
@@ -377,12 +403,25 @@ export default function DashboardPage() {
                 : "Aucune visite en attente sur la période sélectionnée"}
             </p>
           </div>
+        ) : vueFile ? (
+          <div className="bg-white border border-gray-200 rounded-2xl p-4">
+            <FileAttente
+              visites={visitesEnAttente}
+              entrepriseId={utilisateur!.entreprise_id}
+              onOrdreChange={charger}
+            />
+          </div>
         ) : (
           <div className="space-y-4">
-            {visitesEnAttente.map(visite => (
-              <NotifVisite key={visite.id} visite={visite} isNew={visitesNouvelles.has(visite.id)}
-                onDecision={handleDecision} onRediriger={v => setRedirVisite(v)} onTerminer={handleTerminer} />
-            ))}
+            {(() => {
+              const tries = trierFileAttente(visitesEnAttente)
+              return tries.map((visite, idx) => (
+                <NotifVisite key={visite.id} visite={visite} isNew={visitesNouvelles.has(visite.id)}
+                  rang={idx + 1}
+                  onDecision={handleDecision} onRediriger={v => setRedirVisite(v)} onTerminer={handleTerminer}
+                  utilisateur={utilisateur ?? undefined} />
+              ))
+            })()}
           </div>
         )}
       </div>

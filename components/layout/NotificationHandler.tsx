@@ -1,18 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useNotifications } from '@/hooks/useNotifications'
-
-interface Props {
-  utilisateurId: string
-}
-
-export default function NotificationHandler({ utilisateurId }: Props) {
-  const { nonLues } = useNotifications(utilisateurId)
-
-  useEffect(() => {
-    document.title = nonLues > 0 ? `(${nonLues}) VisitPro` : 'VisitPro'
-  }, [nonLues])
-
+// Le traitement des notifications (son, titre, badge) est maintenant géré
+// directement dans TopBar via useNotifications. Ce composant est conservé
+// pour ne pas modifier les layouts mais ne fait plus rien.
+export default function NotificationHandler({ utilisateurId }: { utilisateurId: string }) {
   return null
 }

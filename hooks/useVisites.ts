@@ -72,6 +72,9 @@ export function useVisites(entrepriseId: string | null, filtres: FiltresVisites 
       if (filtres.destinataireId) query = query.eq('destinataire_id', filtres.destinataireId)
       if (filtres.siteId) query = query.eq('site_id', filtres.siteId)
 
+      // Filet de sécurité — paginer si besoin au-delà de 500
+      query = query.limit(500)
+
       const { data, error } = await query
       if (error) throw error
       const result = data ?? []
@@ -94,7 +97,16 @@ export function useVisites(entrepriseId: string | null, filtres: FiltresVisites 
       .channel(`visites-entreprise-${entrepriseId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visites', filter: `entreprise_id=eq.${entrepriseId}` },
         (payload) => {
-          chargerRef.current()
+          if (payload.eventType === 'UPDATE' && payload.new?.id) {
+            // Patch instantané : on écrase seulement les colonnes brutes (statut, heures…)
+            // Les jointures (destinataire, visiteur) restent intactes
+            setVisites((prev) =>
+              prev.map((v) => v.id === payload.new.id ? { ...v, ...payload.new } : v)
+            )
+          } else {
+            // INSERT / DELETE → rechargement complet pour synchroniser
+            chargerRef.current()
+          }
           onRealtimeRef.current?.(payload.eventType)
         })
       .subscribe()

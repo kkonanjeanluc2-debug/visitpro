@@ -71,6 +71,9 @@ export function useRendezVous(entrepriseId: string | null, filtres: FiltresRdv =
       if (filtres.statut && filtres.statut !== 'tous') query = query.eq('statut', filtres.statut)
       if (filtres.siteId) query = query.eq('site_id', filtres.siteId)
 
+      // Filet de sécurité — paginer si besoin au-delà de 300
+      query = query.limit(300)
+
       const { data, error } = await query
       if (error) throw error
       const result = data ?? []

@@ -1,0 +1,287 @@
+// Edge Function : rapport-hebdo
+// Cron : tous les lundis à 08h00 UTC+0 (= 08h00 CI)
+// Accepte un body JSON optionnel { entreprise_id } pour cibler une entreprise précise (tests)
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const MAILEROO_API_KEY = Deno.env.get('MAILEROO_API_KEY') ?? ''
+const FROM_EMAIL = Deno.env.get('MAILEROO_FROM_EMAIL') ?? 'noreply@visitpro.ci'
+const FROM_NAME = Deno.env.get('MAILEROO_FROM_NAME') ?? 'VisitPro'
+
+async function envoyerEmail(to: string[], sujet: string, html: string): Promise<boolean> {
+  let ok = true
+  for (const email of to) {
+    const res = await fetch('https://api.maileroo.com/v1/send', {
+      method: 'POST',
+      headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to: email, subject: sujet, html }),
+    })
+    if (!res.ok) ok = false
+  }
+  return ok
+}
+
+interface StatsHebdo {
+  nbVisites: number
+  nbAcceptees: number
+  nbDeclinee: number
+  nbRedirigees: number
+  tauxAcceptation: number
+  tempsMoyen: number
+  topCollaborateur: string | null
+  topVisiteur: string | null
+  rdvConfirmes: number
+  rdvAnnules: number
+  deltaVisites: number | null // comparaison avec S-1
+}
+
+function htmlRapport(opts: {
+  nomEntreprise: string
+  periodeDebut: string
+  periodeFin: string
+  stats: StatsHebdo
+}): string {
+  const { nomEntreprise, periodeDebut, periodeFin, stats } = opts
+  const signe = stats.deltaVisites == null ? '' : stats.deltaVisites >= 0 ? `+${stats.deltaVisites}` : `${stats.deltaVisites}`
+  const couleurDelta = stats.deltaVisites == null ? '#64748b' : stats.deltaVisites >= 0 ? '#16a34a' : '#dc2626'
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Rapport hebdomadaire — VisitPro</title></head>
+<body style="font-family:Arial,sans-serif;background:#f5f6fa;margin:0;padding:24px">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+
+    <!-- Header -->
+    <div style="background:#1E3A5F;padding:28px 32px">
+      <h1 style="color:#fff;margin:0;font-size:22px">📊 Rapport hebdomadaire</h1>
+      <p style="color:rgba(255,255,255,0.7);margin:6px 0 0;font-size:14px">${nomEntreprise}</p>
+      <p style="color:rgba(255,255,255,0.5);margin:4px 0 0;font-size:13px">${periodeDebut} — ${periodeFin}</p>
+    </div>
+
+    <!-- Stats principales -->
+    <div style="padding:28px 32px 16px">
+      <h2 style="font-size:14px;font-weight:600;color:#374151;margin:0 0 16px;text-transform:uppercase;letter-spacing:.05em">Activité de la semaine</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#f8fafc;border-radius:12px;padding:18px;text-align:center;border:1px solid #e2e8f0">
+          <p style="font-size:34px;font-weight:bold;color:#1E3A5F;margin:0">${stats.nbVisites}</p>
+          <p style="color:#64748b;font-size:13px;margin:4px 0 0">Visites totales</p>
+          ${stats.deltaVisites != null ? `<p style="font-size:12px;font-weight:bold;color:${couleurDelta};margin:4px 0 0">${signe} vs semaine préc.</p>` : ''}
+        </div>
+        <div style="background:#f0fdf4;border-radius:12px;padding:18px;text-align:center;border:1px solid #bbf7d0">
+          <p style="font-size:34px;font-weight:bold;color:#16a34a;margin:0">${stats.tauxAcceptation}%</p>
+          <p style="color:#64748b;font-size:13px;margin:4px 0 0">Taux d'acceptation</p>
+          <p style="font-size:11px;color:#86efac;margin:4px 0 0">${stats.nbAcceptees} acceptées</p>
+        </div>
+        <div style="background:#fefce8;border-radius:12px;padding:18px;text-align:center;border:1px solid #fde68a">
+          <p style="font-size:34px;font-weight:bold;color:#d97706;margin:0">${stats.tempsMoyen} min</p>
+          <p style="color:#64748b;font-size:13px;margin:4px 0 0">Attente moyenne</p>
+        </div>
+        <div style="background:#fef2f2;border-radius:12px;padding:18px;text-align:center;border:1px solid #fecaca">
+          <p style="font-size:34px;font-weight:bold;color:#dc2626;margin:0">${stats.nbDeclinee}</p>
+          <p style="color:#64748b;font-size:13px;margin:4px 0 0">Visites déclinées</p>
+          ${stats.nbRedirigees > 0 ? `<p style="font-size:11px;color:#fca5a5;margin:4px 0 0">${stats.nbRedirigees} redirigée(s)</p>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Highlights -->
+    <div style="padding:0 32px 28px">
+      <div style="border-top:1px solid #f1f5f9;padding-top:20px;space-y:12px">
+        <h2 style="font-size:14px;font-weight:600;color:#374151;margin:0 0 14px;text-transform:uppercase;letter-spacing:.05em">Points forts</h2>
+
+        ${stats.topCollaborateur ? `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#eff6ff;border-radius:10px;margin-bottom:10px">
+          <div style="font-size:24px">🏆</div>
+          <div>
+            <p style="font-size:12px;color:#3b82f6;font-weight:600;margin:0">Collaborateur le plus sollicité</p>
+            <p style="font-size:15px;color:#1e40af;font-weight:bold;margin:2px 0 0">${stats.topCollaborateur}</p>
+          </div>
+        </div>` : ''}
+
+        ${stats.topVisiteur ? `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#f0fdf4;border-radius:10px;margin-bottom:10px">
+          <div style="font-size:24px">⭐</div>
+          <div>
+            <p style="font-size:12px;color:#16a34a;font-weight:600;margin:0">Visiteur le plus fréquent</p>
+            <p style="font-size:15px;color:#14532d;font-weight:bold;margin:2px 0 0">${stats.topVisiteur}</p>
+          </div>
+        </div>` : ''}
+
+        ${(stats.rdvConfirmes > 0 || stats.rdvAnnules > 0) ? `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#f5f3ff;border-radius:10px;margin-bottom:10px">
+          <div style="font-size:24px">📅</div>
+          <div>
+            <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:0">Rendez-vous de la semaine</p>
+            <p style="font-size:14px;color:#4c1d95;margin:2px 0 0">
+              <strong>${stats.rdvConfirmes}</strong> confirmé(s) · <strong>${stats.rdvAnnules}</strong> annulé(s)
+            </p>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center">
+      <p style="color:#94a3b8;font-size:12px;margin:0">
+        Rapport généré automatiquement par <strong>VisitPro</strong><br>
+        Pour modifier vos préférences de rapport, connectez-vous à votre espace admin.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
+}
+
+Deno.serve(async (req) => {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  )
+
+  // Optionnel : cibler une seule entreprise (pour les tests)
+  let filtreEntrepriseId: string | null = null
+  try {
+    const body = await req.json().catch(() => ({}))
+    filtreEntrepriseId = body.entreprise_id ?? null
+  } catch { /* pas de body JSON */ }
+
+  const maintenant = new Date()
+  const periodeFinDate = new Date(maintenant)
+  periodeFinDate.setDate(periodeFinDate.getDate() - 1)
+  const periodeDebutDate = new Date(periodeFinDate)
+  periodeDebutDate.setDate(periodeDebutDate.getDate() - 6)
+  // Semaine précédente pour comparaison
+  const sPrevFinDate = new Date(periodeDebutDate)
+  sPrevFinDate.setDate(sPrevFinDate.getDate() - 1)
+  const sPrevDebutDate = new Date(sPrevFinDate)
+  sPrevDebutDate.setDate(sPrevDebutDate.getDate() - 6)
+
+  const periodeFin = periodeFinDate.toISOString().split('T')[0]
+  const periodeDebut = periodeDebutDate.toISOString().split('T')[0]
+  const sPrevFin = sPrevFinDate.toISOString().split('T')[0]
+  const sPrevDebut = sPrevDebutDate.toISOString().split('T')[0]
+
+  // Récupérer les configs actives (filtre optionnel)
+  let configQuery = supabase
+    .from('config_rapports')
+    .select('*, entreprise:entreprises(id, nom, plan)')
+    .eq('actif', true)
+
+  if (filtreEntrepriseId) {
+    configQuery = configQuery.eq('entreprise_id', filtreEntrepriseId)
+  }
+
+  const { data: configs } = await configQuery
+
+  let envoyes = 0
+
+  for (const config of configs ?? []) {
+    const entrepriseId = config.entreprise_id
+    const nomEntreprise = (config.entreprise as any)?.nom ?? 'Votre entreprise'
+    const emails: string[] = config.emails_destinataires ?? []
+    if (!emails.length) continue
+
+    // ── Stats semaine courante ──────────────────────────────────────────────
+    const { data: visites } = await supabase
+      .from('visites')
+      .select('statut, duree_attente, destinataire_id, visiteur_id, destinataire:utilisateurs!destinataire_id(nom, prenom), visiteur:visiteurs!visiteur_id(nom, prenom)')
+      .eq('entreprise_id', entrepriseId)
+      .gte('heure_arrivee', periodeDebut + 'T00:00:00')
+      .lte('heure_arrivee', periodeFin + 'T23:59:59')
+
+    const nbVisites = (visites ?? []).length
+    if (nbVisites === 0 && !filtreEntrepriseId) continue
+
+    const nbAcceptees = (visites ?? []).filter((v) => ['acceptee', 'en_cours', 'terminee'].includes(v.statut)).length
+    const nbDeclinee = (visites ?? []).filter((v) => v.statut === 'declinee').length
+    const nbRedirigees = (visites ?? []).filter((v) => v.statut === 'redirigee').length
+    const tauxAcceptation = nbVisites > 0 ? Math.round((nbAcceptees / nbVisites) * 100) : 0
+    const durees = (visites ?? []).filter((v) => v.duree_attente != null).map((v) => v.duree_attente as number)
+    const tempsMoyen = durees.length > 0 ? Math.round(durees.reduce((a, b) => a + b, 0) / durees.length) : 0
+
+    // Collaborateur le plus sollicité
+    const collabCount: Record<string, { nom: string; count: number }> = {}
+    for (const v of visites ?? []) {
+      if (!v.destinataire_id) continue
+      const nom = (v.destinataire as any)
+        ? `${(v.destinataire as any).prenom ?? ''} ${(v.destinataire as any).nom ?? ''}`.trim()
+        : v.destinataire_id
+      collabCount[v.destinataire_id] = {
+        nom,
+        count: (collabCount[v.destinataire_id]?.count ?? 0) + 1,
+      }
+    }
+    const topCollaborateur = Object.values(collabCount).sort((a, b) => b.count - a.count)[0]?.nom ?? null
+
+    // Visiteur le plus fréquent
+    const visiteurCount: Record<string, { nom: string; count: number }> = {}
+    for (const v of visites ?? []) {
+      if (!v.visiteur_id) continue
+      const nom = (v.visiteur as any)
+        ? `${(v.visiteur as any).prenom ?? ''} ${(v.visiteur as any).nom ?? ''}`.trim()
+        : v.visiteur_id
+      visiteurCount[v.visiteur_id] = {
+        nom,
+        count: (visiteurCount[v.visiteur_id]?.count ?? 0) + 1,
+      }
+    }
+    const topVisiteur = Object.values(visiteurCount).sort((a, b) => b.count - a.count)[0]?.nom ?? null
+
+    // RDV de la semaine
+    const { data: rdvs } = await supabase
+      .from('rendez_vous')
+      .select('statut')
+      .eq('entreprise_id', entrepriseId)
+      .gte('date_rdv', periodeDebut)
+      .lte('date_rdv', periodeFin)
+
+    const rdvConfirmes = (rdvs ?? []).filter((r) => r.statut === 'confirme').length
+    const rdvAnnules = (rdvs ?? []).filter((r) => r.statut === 'annule').length
+
+    // Comparaison semaine précédente
+    const { count: nbVisitesPrev } = await supabase
+      .from('visites')
+      .select('id', { count: 'exact', head: true })
+      .eq('entreprise_id', entrepriseId)
+      .gte('heure_arrivee', sPrevDebut + 'T00:00:00')
+      .lte('heure_arrivee', sPrevFin + 'T23:59:59')
+
+    const deltaVisites = nbVisitesPrev != null ? nbVisites - nbVisitesPrev : null
+
+    const stats: StatsHebdo = {
+      nbVisites, nbAcceptees, nbDeclinee, nbRedirigees, tauxAcceptation,
+      tempsMoyen, topCollaborateur, topVisiteur,
+      rdvConfirmes, rdvAnnules, deltaVisites,
+    }
+
+    const html = htmlRapport({
+      nomEntreprise,
+      periodeDebut: new Date(periodeDebut).toLocaleDateString('fr-CI', { day: 'numeric', month: 'long' }),
+      periodeFin: new Date(periodeFin).toLocaleDateString('fr-CI', { day: 'numeric', month: 'long', year: 'numeric' }),
+      stats,
+    })
+
+    const sujet = `Rapport hebdomadaire VisitPro — ${nomEntreprise} — Semaine du ${new Date(periodeDebut).toLocaleDateString('fr-CI', { day: 'numeric', month: 'long' })}`
+
+    const ok = await envoyerEmail(emails, sujet, html)
+
+    if (ok) {
+      await supabase.from('rapports_envoyes').insert({
+        entreprise_id: entrepriseId,
+        periode_debut: periodeDebut,
+        periode_fin: periodeFin,
+        nb_visites: nbVisites,
+        nb_acceptees: nbAcceptees,
+        nb_declinee: nbDeclinee,
+        temps_attente_moyen: tempsMoyen,
+        envoye_a: emails,
+      })
+      envoyes++
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ succes: true, rapports_envoyes: envoyes, periode: { debut: periodeDebut, fin: periodeFin } }),
+    { headers: { 'Content-Type': 'application/json' } },
+  )
+})
