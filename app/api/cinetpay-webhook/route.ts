@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
       }
 
       const montants: Record<string, number> = {
-        pro: 15000,
-        enterprise: 40000,
+        pro: 20000,
+        enterprise: 45000,
       }
 
       const montant = montants[plan]

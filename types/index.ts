@@ -278,8 +278,8 @@ export const PLANS: Record<Plan, PlanInfo> = {
   pro: {
     nom: 'Pro',
     tagline: 'Idéal pour les PME',
-    prix: 12000,
-    prix_annuel: 120000,
+    prix: 20000,
+    prix_annuel: 200000,
     max_utilisateurs: 5,
     max_visites_mois: null,
     sms: true,
@@ -297,8 +297,8 @@ export const PLANS: Record<Plan, PlanInfo> = {
   enterprise: {
     nom: 'Enterprise',
     tagline: 'Grandes structures & multi-sites',
-    prix: 40000,
-    prix_annuel: 400000,
+    prix: 45000,
+    prix_annuel: 450000,
     max_utilisateurs: null,
     max_visites_mois: null,
     sms: true,

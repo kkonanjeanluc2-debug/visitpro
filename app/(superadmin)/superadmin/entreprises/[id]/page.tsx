@@ -7,8 +7,8 @@ import type { Entreprise, Abonnement, Utilisateur, Plan, StatutAbonnement } from
 
 const PLANS_INFO = {
   starter: { label: 'Starter', prix: 0, color: 'bg-gray-100 text-gray-700 border border-gray-200' },
-  pro: { label: 'Pro', prix: 15000, color: 'bg-blue-100 text-blue-700 border border-blue-200' },
-  enterprise: { label: 'Enterprise', prix: 40000, color: 'bg-purple-100 text-purple-700 border border-purple-200' },
+  pro: { label: 'Pro', prix: 20000, color: 'bg-blue-100 text-blue-700 border border-blue-200' },
+  enterprise: { label: 'Enterprise', prix: 45000, color: 'bg-purple-100 text-purple-700 border border-purple-200' },
 }
 
 const STATUT_COLORS: Record<StatutAbonnement, string> = {
