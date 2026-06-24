@@ -54,10 +54,14 @@ const FEATURES: { label: string; proVal: string | boolean; enterpriseVal: string
 
 // ─── Composant ────────────────────────────────────────────────────────────────
 
+interface TarifDB { plan: string; prix_mensuel: number; prix_annuel: number }
+type TarifsMap = Record<string, { prix_mensuel: number; prix_annuel: number }>
+
 export default function AbonnementSection() {
   const { utilisateur } = useAuth()
   const supabase = createClient()
   const [abonnement, setAbonnement] = useState<Abonnement | null>(null)
+  const [tarifs, setTarifs] = useState<TarifsMap>({})
   const [loading, setLoading] = useState(true)
   const [paiementLoading, setPaiementLoading] = useState<Plan | null>(null)
   const [facturation, setFacturation] = useState<'mensuel' | 'annuel'>('mensuel')
@@ -67,14 +71,20 @@ export default function AbonnementSection() {
   }, [utilisateur?.entreprise_id])
 
   const charger = async () => {
-    const { data } = await supabase
-      .from('abonnements')
-      .select('*')
-      .eq('entreprise_id', utilisateur!.entreprise_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    setAbonnement(data)
+    const [{ data: abon }, { data: tarifsData }] = await Promise.all([
+      supabase
+        .from('abonnements')
+        .select('*')
+        .eq('entreprise_id', utilisateur!.entreprise_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from('tarifs_plans').select('*'),
+    ])
+    setAbonnement(abon)
+    const map: TarifsMap = {}
+    ;(tarifsData ?? []).forEach((t: TarifDB) => { map[t.plan] = { prix_mensuel: t.prix_mensuel, prix_annuel: t.prix_annuel } })
+    setTarifs(map)
     setLoading(false)
   }
 
@@ -108,10 +118,16 @@ export default function AbonnementSection() {
   const joursUses = joursEcoules(abonnement?.date_debut, dateFin)
   const pourcentage = totalJours > 0 ? Math.min(100, Math.round((joursUses / totalJours) * 100)) : 0
 
-  const prixAffiche = (plan: typeof PLANS.pro) =>
-    facturation === 'annuel' && plan.prix_annuel
-      ? Math.round(plan.prix_annuel / 12)
-      : plan.prix
+  const getPrix = (planKey: string) => {
+    const t = tarifs[planKey]
+    if (!t) {
+      const p = PLANS[planKey as Plan]
+      return facturation === 'annuel' && p?.prix_annuel ? Math.round(p.prix_annuel / 12) : p?.prix ?? 0
+    }
+    return facturation === 'annuel' && t.prix_annuel ? Math.round(t.prix_annuel / 12) : t.prix_mensuel
+  }
+  const getPrixAnnuel = (planKey: string) => tarifs[planKey]?.prix_annuel ?? PLANS[planKey as Plan]?.prix_annuel ?? 0
+  const getPrixMensuel = (planKey: string) => tarifs[planKey]?.prix_mensuel ?? PLANS[planKey as Plan]?.prix ?? 0
 
   return (
     <div className="space-y-6">
@@ -150,9 +166,9 @@ export default function AbonnementSection() {
                 <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${couleur.badge}`}>{statut}</span>
               </div>
               <p className="text-sm text-gray-500">{planActuel.tagline}</p>
-              {planActuel.prix > 0 && (
+              {getPrixMensuel(planActuelKey) > 0 && (
                 <p className="mt-1.5 text-base font-bold text-primary">
-                  {formatFcfa(planActuel.prix)} <span className="text-sm font-normal text-gray-400">/ mois</span>
+                  {formatFcfa(getPrixMensuel(planActuelKey))} <span className="text-sm font-normal text-gray-400">/ mois</span>
                 </p>
               )}
               {dateFin && (
@@ -233,7 +249,7 @@ export default function AbonnementSection() {
             const plan = PLANS[planKey]
             const estActuel = planKey === planActuelKey
             const isPro = planKey === 'pro'
-            const prix = prixAffiche(plan)
+            const prix = getPrix(planKey)
 
             return (
               <div
@@ -278,13 +294,13 @@ export default function AbonnementSection() {
                     </span>
                     <span className="text-gray-400 text-xs mb-1">/mois</span>
                   </div>
-                  {facturation === 'annuel' && plan.prix_annuel && (
+                  {facturation === 'annuel' && getPrixAnnuel(planKey) > 0 && (
                     <p className="text-xs text-green-600 font-semibold mt-0.5">
-                      Facturé {formatFcfa(plan.prix_annuel)}/an
+                      Facturé {formatFcfa(getPrixAnnuel(planKey))}/an
                     </p>
                   )}
-                  {facturation === 'mensuel' && plan.prix_annuel && (
-                    <p className="text-xs text-gray-400 mt-0.5">ou {formatFcfa(Math.round(plan.prix_annuel / 12))}/mois en annuel</p>
+                  {facturation === 'mensuel' && getPrixAnnuel(planKey) > 0 && (
+                    <p className="text-xs text-gray-400 mt-0.5">ou {formatFcfa(Math.round(getPrixAnnuel(planKey) / 12))}/mois en annuel</p>
                   )}
                 </div>
 
