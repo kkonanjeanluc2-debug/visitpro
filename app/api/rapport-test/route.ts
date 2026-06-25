@@ -237,7 +237,7 @@ export async function POST(req: Request) {
 
   const ok = await envoyerEmail(emails, sujet, html)
   if (!ok) {
-    return NextResponse.json({ error: 'Échec de l\'envoi via Resend' }, { status: 500 })
+    return NextResponse.json({ error: 'Échec de l\'envoi via Maileroo' }, { status: 500 })
   }
 
   // Loguer dans rapports_envoyes
