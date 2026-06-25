@@ -8,24 +8,24 @@ export default function AppleIcon() {
     (
       <div
         style={{
-          background: 'linear-gradient(145deg, #1E3A5F 0%, #0D2040 100%)',
-          width: '100%',
-          height: '100%',
+          width: 180,
+          height: 180,
+          background: '#1E3A5F',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 36,
+          gap: 0,
         }}
       >
         <span
           style={{
-            color: 'white',
+            color: '#ffffff',
             fontSize: 100,
-            fontWeight: 800,
+            fontWeight: 900,
             lineHeight: 1,
-            letterSpacing: -3,
-            fontFamily: 'system-ui, sans-serif',
+            fontFamily: 'sans-serif',
           }}
         >
           V
@@ -33,17 +33,17 @@ export default function AppleIcon() {
         <span
           style={{
             color: '#1DB98F',
-            fontSize: 26,
+            fontSize: 24,
             fontWeight: 700,
-            letterSpacing: 9,
-            marginTop: -8,
-            fontFamily: 'system-ui, sans-serif',
+            letterSpacing: 8,
+            fontFamily: 'sans-serif',
+            marginTop: -6,
           }}
         >
           PRO
         </span>
       </div>
     ),
-    { ...size },
+    { width: 180, height: 180 },
   )
 }

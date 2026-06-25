@@ -8,42 +8,28 @@ export default function Icon() {
     (
       <div
         style={{
-          background: 'linear-gradient(145deg, #1E3A5F 0%, #0D2040 100%)',
-          width: '100%',
-          height: '100%',
+          width: 32,
+          height: 32,
+          background: '#1E3A5F',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 7,
-          position: 'relative',
         }}
       >
-        {/* Lettre V */}
         <span
           style={{
-            color: 'white',
-            fontSize: 22,
-            fontWeight: 800,
+            color: '#ffffff',
+            fontSize: 21,
+            fontWeight: 900,
             lineHeight: 1,
-            fontFamily: 'system-ui, sans-serif',
+            fontFamily: 'sans-serif',
           }}
         >
           V
         </span>
-        {/* Pastille accent verte */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 4,
-            right: 4,
-            width: 7,
-            height: 7,
-            borderRadius: 999,
-            background: '#1DB98F',
-          }}
-        />
       </div>
     ),
-    { ...size },
+    { width: 32, height: 32 },
   )
 }
