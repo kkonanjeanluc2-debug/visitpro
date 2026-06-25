@@ -257,7 +257,7 @@ export default function DashboardPage() {
     charger()
   }
 
-  const handleTerminer = async (visiteId: string) => {
+  const handleTerminer = async (visiteId: string, sujetTraite?: string) => {
     const heureSortie = new Date()
     const visite = visitesEnCours.find(v => v.id === visiteId)
     const dureeVisite = visite?.heure_entree
@@ -265,9 +265,10 @@ export default function DashboardPage() {
       : null
     await supabase.from('visites').update({
       statut: 'terminee', heure_sortie: heureSortie.toISOString(), duree_visite: dureeVisite,
+      ...(sujetTraite ? { sujet_traite: sujetTraite } : {}),
     }).eq('id', visiteId)
 
-    const sujet = visite?.sujet_traite?.trim()
+    const sujet = sujetTraite ?? visite?.sujet_traite?.trim()
     if (sujet && visite?.visiteur_id) {
       const { data: v } = await supabase
         .from('visiteurs').select('sujets_historique').eq('id', visite.visiteur_id).single()

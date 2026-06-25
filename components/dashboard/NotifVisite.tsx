@@ -13,7 +13,7 @@ interface NotifVisiteProps {
   rang?: number
   onDecision: (visiteId: string, decision: 'acceptee' | 'declinee', note?: string) => void
   onRediriger: (visite: Visite) => void
-  onTerminer?: (visiteId: string) => void
+  onTerminer?: (visiteId: string, sujetTraite?: string) => void
   utilisateur?: Utilisateur
 }
 
@@ -28,6 +28,7 @@ export default function NotifVisite({ visite, isNew = false, rang, onDecision, o
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [showNotesDrawer, setShowNotesDrawer] = useState(false)
+  const [sujetTraite, setSujetTraite] = useState(visite.sujet_traite ?? '')
 
   const isVip = visite.visiteur?.est_vip === true
   const hasNotes = Boolean(visite.visiteur?.notes_privees)
@@ -193,17 +194,28 @@ export default function NotifVisite({ visite, isNew = false, rang, onDecision, o
       <div className="mt-4 flex gap-2 flex-wrap">
         {(visite.statut === 'acceptee' || visite.statut === 'en_cours') ? (
           <>
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <div className="w-full flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
               <span className="text-sm text-green-700 font-medium">
                 {visite.statut === 'en_cours' ? 'Visite en cours' : 'Visiteur autorisé à entrer'}
               </span>
             </div>
+            {/* Champ sujet traité */}
+            <div className="w-full">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Sujet traité <span className="text-gray-400">(optionnel)</span></label>
+              <input
+                type="text"
+                value={sujetTraite}
+                onChange={e => setSujetTraite(e.target.value)}
+                placeholder="Ex : Contrat de partenariat, renouvellement abonnement..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+              />
+            </div>
             {onTerminer && (
               <button
-                onClick={async () => { setLoading(true); await onTerminer(visite.id); setLoading(false) }}
+                onClick={async () => { setLoading(true); await onTerminer(visite.id, sujetTraite.trim() || undefined); setLoading(false) }}
                 disabled={loading}
-                className="px-4 py-2.5 bg-gray-700 text-white text-sm font-semibold rounded-xl hover:bg-gray-900 transition-colors disabled:opacity-50"
+                className="w-full py-2.5 bg-gray-700 text-white text-sm font-semibold rounded-xl hover:bg-gray-900 transition-colors disabled:opacity-50"
               >
                 {loading ? '...' : '✓ Terminer la visite'}
               </button>

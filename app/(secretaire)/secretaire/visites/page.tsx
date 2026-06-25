@@ -81,7 +81,7 @@ export default function VisitesPage() {
       .eq('id', visiteId)
   }
 
-  const handleTerminer = async (visiteId: string) => {
+  const handleTerminer = async (visiteId: string, sujetTraite?: string) => {
     const heureSortie = new Date()
     const visite = visites.find((v) => v.id === visiteId)
     const dureeVisite = visite?.heure_entree
@@ -94,11 +94,12 @@ export default function VisitesPage() {
         statut: 'terminee',
         heure_sortie: heureSortie.toISOString(),
         duree_visite: dureeVisite,
+        ...(sujetTraite ? { sujet_traite: sujetTraite } : {}),
       })
       .eq('id', visiteId)
 
     // Accumulation du sujet dans l'historique du visiteur
-    const sujet = visite?.sujet_traite?.trim()
+    const sujet = sujetTraite ?? visite?.sujet_traite?.trim()
     if (sujet && visite?.visiteur_id) {
       const { data: v } = await supabase
         .from('visiteurs').select('sujets_historique').eq('id', visite.visiteur_id).single()
