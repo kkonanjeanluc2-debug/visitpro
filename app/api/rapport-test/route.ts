@@ -221,8 +221,7 @@ export async function POST(req: Request) {
 
   const sujet = `[TEST] Rapport hebdomadaire VisitPro — ${nomEntreprise}`
 
-  if (!MAILEROO_API_KEY) {
-    // Pas de clé Maileroo : retourner le HTML pour prévisualisation uniquement
+  if (!process.env.MAILEROO_API_KEY) {
     return NextResponse.json({ succes: true, html, emails, mode: 'preview_only', message: 'MAILEROO_API_KEY non configurée — email non envoyé' })
   }
 
