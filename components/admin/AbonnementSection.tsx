@@ -98,7 +98,11 @@ export default function AbonnementSection() {
         body: JSON.stringify({ action: 'initier_paiement', plan, entreprise_id: utilisateur!.entreprise_id, facturation }),
       })
       const data = await response.json()
-      if (data.payment_url) window.open(data.payment_url, '_blank')
+      if (data.payment_url) {
+        window.location.href = data.payment_url
+      } else {
+        alert(data.erreur ?? "Erreur lors de l'initialisation du paiement")
+      }
     } catch {
       alert("Erreur lors de l'initialisation du paiement")
     } finally {
