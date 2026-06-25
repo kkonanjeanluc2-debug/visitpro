@@ -233,6 +233,7 @@ export default function ParametresPage() {
 
   const sauvegarderSite = async () => {
     if (!siteNom.trim()) return
+    if (!siteEdite && limiteSites) return
     setSavingSite(true)
     const payload = {
       nom: siteNom.trim(),
@@ -322,6 +323,8 @@ export default function ParametresPage() {
   if (!utilisateur) return null
 
   const isResponsableSite = utilisateur.permissions?.responsable_site === true && utilisateur.role === 'collaborateur'
+  const planCourant = PLANS[(abonnement?.plan ?? entreprise?.plan ?? 'starter') as Plan]
+  const limiteSites = !planCourant.multi_sites && sites.length >= 1
   // Sections visibles selon le rôle
   const sectionsVisibles = SECTIONS.filter(s => {
     if (isResponsableSite && s.id === 'abonnement') return false
@@ -473,11 +476,18 @@ export default function ParametresPage() {
                     <p className="text-xs text-gray-500 mt-0.5">Gérez vos établissements, agences et succursales.</p>
                   </div>
                   {!isResponsableSite && (
-                    <button onClick={() => { ouvrirModalSite(); chargerSites() }}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white text-xs font-semibold rounded-xl hover:bg-primary/90 transition-colors">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                      Nouveau site
-                    </button>
+                    limiteSites ? (
+                      <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        Multi-sites — plan Enterprise requis
+                      </div>
+                    ) : (
+                      <button onClick={() => { ouvrirModalSite(); chargerSites() }}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white text-xs font-semibold rounded-xl hover:bg-primary/90 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        Nouveau site
+                      </button>
+                    )
                   )}
                 </div>
               </div>

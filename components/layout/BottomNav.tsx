@@ -3,7 +3,8 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import type { Utilisateur } from '@/types'
+import type { Utilisateur, Plan } from '@/types'
+import { PLANS } from '@/types'
 
 interface BottomNavProps {
   utilisateur: Utilisateur
@@ -14,6 +15,7 @@ export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProp
   const pathname = usePathname()
   const role = utilisateur.role
   const [plusOpen, setPlusOpen] = useState(false)
+  const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
 
   const peutVoirStats = role === 'patron' || role === 'admin' || utilisateur.permissions?.voir_stats
 
@@ -21,18 +23,18 @@ export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProp
   const mainItems =
     ['secretaire', 'admin'].includes(role)
       ? [
-          { href: '/secretaire',          label: 'Accueil',   icon: HomeIcon    },
-          { href: '/secretaire/visites',   label: 'Visites',   icon: UsersIcon   },
-          { href: '/secretaire/rendez-vous', label: 'RDV',     icon: CalendarIcon },
-          { href: '/secretaire/messages',  label: 'Messages',  icon: ChatIcon    },
-          { href: '/secretaire/registre',  label: 'Registre',  icon: DocumentIcon },
+          { href: '/secretaire',             label: 'Accueil',  icon: HomeIcon     },
+          { href: '/secretaire/visites',     label: 'Visites',  icon: UsersIcon    },
+          { href: '/secretaire/rendez-vous', label: 'RDV',      icon: CalendarIcon },
+          ...(planInfo.messagerie ? [{ href: '/secretaire/messages', label: 'Messages', icon: ChatIcon }] : []),
+          { href: '/secretaire/registre',    label: 'Registre', icon: DocumentIcon },
         ]
       : [
-          { href: '/dashboard',           label: 'Accueil',   icon: GridIcon,   badge: notifCount },
-          { href: '/dashboard/mes-visites', label: 'Visites', icon: UserIcon    },
-          { href: '/dashboard/agenda',    label: 'Agenda',    icon: CalendarIcon },
-          { href: '/dashboard/messages',  label: 'Messages',  icon: ChatIcon    },
-          { href: '__plus__',             label: 'Plus',      icon: DotsIcon    },
+          { href: '/dashboard',             label: 'Accueil',  icon: GridIcon, badge: notifCount },
+          { href: '/dashboard/mes-visites', label: 'Visites',  icon: UserIcon    },
+          { href: '/dashboard/agenda',      label: 'Agenda',   icon: CalendarIcon },
+          ...(planInfo.messagerie ? [{ href: '/dashboard/messages', label: 'Messages', icon: ChatIcon }] : []),
+          { href: '__plus__',               label: 'Plus',     icon: DotsIcon    },
         ]
 
   // Items dans le menu "Plus" (patron/collaborateur)

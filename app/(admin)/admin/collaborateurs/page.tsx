@@ -12,7 +12,8 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import Badge from '@/components/ui/Badge'
 import { ConfirmModal } from '@/components/ui/Modal'
-import type { Utilisateur, Role, Site, UserPermissions } from '@/types'
+import type { Utilisateur, Role, Site, UserPermissions, Plan } from '@/types'
+import { PLANS } from '@/types'
 import { nomComplet } from '@/lib/utils'
 
 const PERMS_CONFIG: { key: keyof UserPermissions; label: string; desc: string }[] = [
@@ -124,6 +125,10 @@ export default function CollaborateursPage() {
     }
     if (motDePasse.length < 8) {
       setErreur('Le mot de passe doit contenir au moins 8 caractères')
+      return
+    }
+    if (limitAtteinte) {
+      setErreur(`Limite atteinte : le plan ${planInfo.nom} autorise ${maxUsers} utilisateurs maximum. Passez à Enterprise pour des utilisateurs illimités.`)
       return
     }
 
@@ -249,6 +254,11 @@ export default function CollaborateursPage() {
 
   if (!utilisateur) return null
 
+  const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
+  const maxUsers = planInfo.max_utilisateurs
+  const utilisateursActifs = utilisateurs.filter(u => u.actif)
+  const limitAtteinte = maxUsers !== null && utilisateursActifs.length >= maxUsers
+
   // Responsable de site ne peut pas créer d'Administrateur
   const rolesDisponibles = isResponsableSite
     ? ROLES.filter(r => r.value !== 'patron')
@@ -269,12 +279,21 @@ export default function CollaborateursPage() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Collaborateurs</h1>
         </div>
-        <Button onClick={() => setShowModal(true)} size="sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Ajouter
-        </Button>
+        {limitAtteinte ? (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Limite {maxUsers} utilisateurs (plan {planInfo.nom})
+          </div>
+        ) : (
+          <Button onClick={() => setShowModal(true)} size="sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Ajouter
+          </Button>
+        )}
       </div>
 
       <Card noPadding>

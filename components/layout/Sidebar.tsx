@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Utilisateur } from '@/types'
+import type { Utilisateur, Plan } from '@/types'
+import { PLANS } from '@/types'
 import Avatar from '@/components/ui/Avatar'
 import { libelleRole } from '@/lib/utils'
 
@@ -173,7 +174,9 @@ export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps
   const pathname = usePathname()
   const supabase = createClient()
   const isResponsableSite = utilisateur.permissions?.responsable_site === true && utilisateur.role === 'collaborateur'
+  const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
   const items = navItems.filter((item) => {
+    if ((item.href === '/dashboard/messages' || item.href === '/secretaire/messages') && !planInfo.messagerie) return false
     if (item.roles.includes(utilisateur.role)) return true
     if (item.href === '/dashboard/stats' && (utilisateur.permissions?.voir_stats || isResponsableSite)) return true
     if (item.href === '/admin' && isResponsableSite) return true
