@@ -154,12 +154,16 @@ export async function middleware(request: NextRequest) {
     return redirectByRole(role, isResponsableSite, request)
   }
 
-  if (pathname.startsWith('/admin') && !['admin', 'patron'].includes(role) && !isResponsableSite) {
+  if (pathname.startsWith('/admin') && !['admin', 'patron', 'collaborateur'].includes(role) && !isResponsableSite) {
     return redirectByRole(role, isResponsableSite, request)
   }
 
-  const routesAdminPatron = ['/rapports', '/display', '/securite']
+  const routesAdminPatron = ['/rapports', '/display']
   if (routesAdminPatron.some((r) => pathname.startsWith(r)) && !['admin', 'patron'].includes(role) && !isResponsableSite) {
+    return redirectByRole(role, isResponsableSite, request)
+  }
+
+  if (pathname.startsWith('/securite') && !['admin', 'patron', 'collaborateur'].includes(role)) {
     return redirectByRole(role, isResponsableSite, request)
   }
 
