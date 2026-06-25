@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!utilisateur) redirect('/login')
 
   const isResponsableSite = utilisateur.permissions?.responsable_site === true
-  if (!['admin', 'patron'].includes(utilisateur.role) && !isResponsableSite) redirect('/dashboard')
+  if (!['admin', 'patron', 'collaborateur'].includes(utilisateur.role) && !isResponsableSite) redirect('/dashboard')
 
   const { data: abonnement } = await supabase
     .from('abonnements')
