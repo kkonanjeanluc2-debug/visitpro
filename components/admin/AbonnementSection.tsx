@@ -384,7 +384,7 @@ export default function AbonnementSection() {
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-2.5">
-          Paiements 100% sécurisés via CinetPay ·{' '}
+          Paiements 100% sécurisés via GeniusPay ·{' '}
           <a href="mailto:support@visitpro.ci" className="underline hover:text-gray-600">support@visitpro.ci</a>
         </p>
       </div>
