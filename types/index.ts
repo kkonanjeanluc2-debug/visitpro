@@ -299,7 +299,7 @@ export const PLANS: Record<Plan, PlanInfo> = {
     tagline: 'Grandes structures & multi-sites',
     prix: 45000,
     prix_annuel: 450000,
-    max_utilisateurs: null,
+    max_utilisateurs: 25,
     max_visites_mois: null,
     sms: true,
     export_pdf: true,

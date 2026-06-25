@@ -128,7 +128,7 @@ export default function CollaborateursPage() {
       return
     }
     if (limitAtteinte) {
-      setErreur(`Limite atteinte : le plan ${planInfo.nom} autorise ${maxUsers} utilisateurs maximum. Passez à Enterprise pour des utilisateurs illimités.`)
+      setErreur(`Limite atteinte : le plan ${planInfo.nom} autorise ${maxUsers} utilisateurs maximum.`)
       return
     }
 

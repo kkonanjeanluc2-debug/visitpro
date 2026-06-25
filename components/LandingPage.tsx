@@ -126,7 +126,7 @@ const PLANS_DATA = [
     prixAnnuel: 450000,
     accent: false,
     popular: false,
-    users: 'Utilisateurs illimités',
+    users: '25 utilisateurs',
     visites: 'Visites illimitées',
     features: [
       { label: 'Badge visiteur numérique', ok: true },
@@ -136,7 +136,7 @@ const PLANS_DATA = [
       { label: "Écran d'accueil", ok: true },
       { label: 'Liste noire / Sécurité', ok: true },
       { label: 'Messagerie interne', ok: true },
-      { label: 'Multi-sites', ok: true },
+      { label: 'Multi-sites (3 sites)', ok: true },
     ],
     cta: 'Essayer 14 jours',
     href: '/register',

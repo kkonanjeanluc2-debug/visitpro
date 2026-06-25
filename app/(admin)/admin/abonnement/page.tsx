@@ -46,7 +46,8 @@ function libelleStatut(statut: string | undefined, jours: number | null) {
 type Feature = { label: string; key: keyof typeof PLANS.pro | 'utilisateurs' | 'visites' }
 
 const FEATURES: { label: string; proVal: string | boolean; enterpriseVal: string | boolean }[] = [
-  { label: 'Utilisateurs',             proVal: '5',            enterpriseVal: 'Illimités' },
+  { label: 'Utilisateurs',             proVal: '5',            enterpriseVal: '25' },
+  { label: 'Sites',                    proVal: '1',            enterpriseVal: '3' },
   { label: 'Visites / mois',           proVal: 'Illimitées',   enterpriseVal: 'Illimitées' },
   { label: 'Badge visiteur numérique', proVal: true,           enterpriseVal: true },
   { label: 'Notifications temps réel', proVal: true,           enterpriseVal: true },
@@ -55,7 +56,7 @@ const FEATURES: { label: string; proVal: string | boolean; enterpriseVal: string
   { label: "Écran d'accueil",           proVal: true,           enterpriseVal: true },
   { label: 'Liste noire / Sécurité',    proVal: true,           enterpriseVal: true },
   { label: 'Messagerie interne',        proVal: false,          enterpriseVal: true },
-  { label: 'Multi-sites',               proVal: false,          enterpriseVal: true },
+  { label: 'Multi-sites (3)',           proVal: false,          enterpriseVal: true },
 ]
 
 // ─── Page ────────────────────────────────────────────────────────────────────
