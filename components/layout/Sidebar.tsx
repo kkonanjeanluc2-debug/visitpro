@@ -6,12 +6,16 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Utilisateur, Plan } from '@/types'
 import { PLANS } from '@/types'
+import type { Translations } from '@/lib/translations'
 import Avatar from '@/components/ui/Avatar'
 import { libelleRole } from '@/lib/utils'
+import { useTrans } from '@/hooks/useTrans'
+
+type NavKey = keyof Translations['nav']
 
 interface NavItem {
   href: string
-  label: string
+  labelKey: NavKey
   icon: React.ReactNode
   roles: string[]
 }
@@ -19,7 +23,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     href: '/secretaire',
-    label: 'Accueil',
+    labelKey: 'home',
     roles: ['secretaire', 'admin'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,7 +33,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/secretaire/visites',
-    label: 'Visites du jour',
+    labelKey: 'visits_today',
     roles: ['secretaire', 'admin'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,7 +43,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/secretaire/rendez-vous',
-    label: 'Rendez-vous',
+    labelKey: 'appointments',
     roles: ['secretaire', 'admin'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,7 +53,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/secretaire/registre',
-    label: 'Registre',
+    labelKey: 'register',
     roles: ['secretaire', 'admin'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +63,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/secretaire/messages',
-    label: 'Messages',
+    labelKey: 'messages',
     roles: ['secretaire', 'admin'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,7 +73,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/dashboard',
-    label: 'Tableau de bord',
+    labelKey: 'dashboard',
     roles: ['collaborateur', 'patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -79,7 +83,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/dashboard/mes-visites',
-    label: 'Mes visites',
+    labelKey: 'my_visits',
     roles: ['collaborateur', 'patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,7 +93,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/dashboard/agenda',
-    label: 'Mon agenda',
+    labelKey: 'my_agenda',
     roles: ['collaborateur', 'patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +103,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/dashboard/messages',
-    label: 'Messages',
+    labelKey: 'messages',
     roles: ['collaborateur', 'patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,7 +113,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/dashboard/stats',
-    label: 'Statistiques',
+    labelKey: 'stats',
     roles: ['patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +123,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/securite',
-    label: 'Liste noire',
+    labelKey: 'blacklist',
     roles: ['admin', 'patron', 'collaborateur'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,7 +133,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/rapports',
-    label: 'Rapports',
+    labelKey: 'reports',
     roles: ['admin', 'patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -139,7 +143,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/display',
-    label: 'Écran d\'accueil',
+    labelKey: 'display',
     roles: ['admin', 'patron'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -149,7 +153,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/admin',
-    label: 'Paramètres',
+    labelKey: 'settings',
     roles: ['admin', 'patron', 'collaborateur'],
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -173,6 +177,7 @@ const NAV_PT = 16
 export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps) {
   const pathname = usePathname()
   const supabase = createClient()
+  const tr = useTrans()
   const isResponsableSite = utilisateur.permissions?.responsable_site === true && utilisateur.role === 'collaborateur'
   const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
   const items = navItems.filter((item) => {
@@ -266,7 +271,7 @@ export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps
             <Link
               key={item.href}
               href={item.href}
-              title={collapsed ? item.label : undefined}
+              title={collapsed ? tr.nav[item.labelKey] : undefined}
               className={`group relative z-10 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
                 transition-all duration-200 ease-out
                 ${isActive
@@ -295,7 +300,7 @@ export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps
               </span>
 
               {!collapsed && (
-                <span className="flex-1 truncate tracking-wide">{item.label}</span>
+                <span className="flex-1 truncate tracking-wide">{tr.nav[item.labelKey]}</span>
               )}
 
               {/* Flèche apparaît au hover */}

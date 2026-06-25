@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { Utilisateur, Plan } from '@/types'
 import { PLANS } from '@/types'
+import { useTrans } from '@/hooks/useTrans'
 
 interface BottomNavProps {
   utilisateur: Utilisateur
@@ -16,34 +17,34 @@ export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProp
   const role = utilisateur.role
   const [plusOpen, setPlusOpen] = useState(false)
   const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
+  const tr = useTrans()
+  const n = tr.nav
 
   const peutVoirStats = role === 'patron' || role === 'admin' || utilisateur.permissions?.voir_stats
 
-  // Items principaux (toujours visibles)
   const mainItems =
     ['secretaire', 'admin'].includes(role)
       ? [
-          { href: '/secretaire',             label: 'Accueil',  icon: HomeIcon     },
-          { href: '/secretaire/visites',     label: 'Visites',  icon: UsersIcon    },
-          { href: '/secretaire/rendez-vous', label: 'RDV',      icon: CalendarIcon },
-          ...(planInfo.messagerie ? [{ href: '/secretaire/messages', label: 'Messages', icon: ChatIcon }] : []),
-          { href: '/secretaire/registre',    label: 'Registre', icon: DocumentIcon },
+          { href: '/secretaire',             label: n.home,         icon: HomeIcon     },
+          { href: '/secretaire/visites',     label: n.visits,       icon: UsersIcon    },
+          { href: '/secretaire/rendez-vous', label: n.rdv,          icon: CalendarIcon },
+          ...(planInfo.messagerie ? [{ href: '/secretaire/messages', label: n.messages, icon: ChatIcon }] : []),
+          { href: '/secretaire/registre',    label: n.register,     icon: DocumentIcon },
         ]
       : [
-          { href: '/dashboard',             label: 'Accueil',  icon: GridIcon, badge: notifCount },
-          { href: '/dashboard/mes-visites', label: 'Visites',  icon: UserIcon    },
-          { href: '/dashboard/agenda',      label: 'Agenda',   icon: CalendarIcon },
-          ...(planInfo.messagerie ? [{ href: '/dashboard/messages', label: 'Messages', icon: ChatIcon }] : []),
-          { href: '__plus__',               label: 'Plus',     icon: DotsIcon    },
+          { href: '/dashboard',             label: n.home,          icon: GridIcon, badge: notifCount },
+          { href: '/dashboard/mes-visites', label: n.visits,        icon: UserIcon    },
+          { href: '/dashboard/agenda',      label: n.appointments,  icon: CalendarIcon },
+          ...(planInfo.messagerie ? [{ href: '/dashboard/messages', label: n.messages, icon: ChatIcon }] : []),
+          { href: '__plus__',               label: n.more,          icon: DotsIcon    },
         ]
 
-  // Items dans le menu "Plus" (patron/collaborateur)
   const plusItems = [
-    ...(peutVoirStats ? [{ href: '/dashboard/stats', label: 'Statistiques', icon: ChartIcon }] : []),
-    { href: '/admin',    label: 'Paramètres',   icon: SettingsIcon  },
-    { href: '/rapports', label: 'Rapports',      icon: ReportIcon    },
-    { href: '/securite', label: 'Liste noire',   icon: ShieldIcon    },
-    { href: '/display',  label: "Écran d'accueil", icon: DisplayIcon },
+    ...(peutVoirStats ? [{ href: '/dashboard/stats', label: n.stats,     icon: ChartIcon    }] : []),
+    { href: '/admin',    label: n.settings,  icon: SettingsIcon  },
+    { href: '/rapports', label: n.reports,   icon: ReportIcon    },
+    { href: '/securite', label: n.blacklist, icon: ShieldIcon    },
+    { href: '/display',  label: n.display,   icon: DisplayIcon   },
   ]
 
   const isActive = (href: string) =>
@@ -63,7 +64,7 @@ export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProp
                 className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors ${anyPlusActive ? 'text-primary' : 'text-gray-500'}`}
               >
                 <DotsIcon className={`w-5 h-5 ${anyPlusActive ? 'text-primary' : 'text-gray-400'}`} />
-                <span>Plus</span>
+                <span>{n.more}</span>
               </button>
             )
           }

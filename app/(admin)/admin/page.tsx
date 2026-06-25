@@ -10,6 +10,7 @@ import { applyTheme } from '@/lib/theme'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import AbonnementSection from '@/components/admin/AbonnementSection'
+import { useTrans } from '@/hooks/useTrans'
 
 // ─── Secteurs ────────────────────────────────────────────────────────────────
 const SECTEURS = [
@@ -81,6 +82,16 @@ function Toggle({ checked, onChange, label, desc }: { checked: boolean; onChange
 export default function ParametresPage() {
   const { utilisateur } = useAuth()
   const supabase = createClient()
+  const tr = useTrans()
+  const sL = (id: Section) => ({
+    entreprise:    tr.settings.company,
+    sites:         tr.settings.sites,
+    equipe:        tr.settings.team,
+    abonnement:    tr.settings.subscription,
+    securite:      tr.settings.security,
+    notifications: tr.settings.notifications,
+    apparence:     tr.settings.appearance,
+  }[id])
   const searchParams = useSearchParams()
   const [section, setSection] = useState<Section>(() => {
     if (typeof window !== 'undefined') {
@@ -348,7 +359,7 @@ export default function ParametresPage() {
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Paramètres</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{tr.settings.title}</h1>
         {isResponsableSite && (
           <span className="px-2.5 py-1 bg-accent/10 text-accent text-xs font-semibold rounded-full border border-accent/20">
             Responsable — {utilisateur.site?.nom ?? 'Mon site'}
@@ -372,7 +383,7 @@ export default function ParametresPage() {
                   }`}
               >
                 {s.icon}
-                {s.label}
+                {sL(s.id)}
               </button>
             ))}
           </div>
@@ -399,7 +410,7 @@ export default function ParametresPage() {
                   ${section === s.id ? 'text-primary' : 'text-gray-600 hover:text-gray-900'}`}
               >
                 {s.icon}
-                {s.label}
+                {sL(s.id)}
               </button>
             ))}
           </nav>
@@ -717,13 +728,13 @@ export default function ParametresPage() {
             <div className="space-y-4">
               {/* Changer mot de passe */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h2 className="text-base font-bold text-gray-900 mb-1">Changer le mot de passe</h2>
-                <p className="text-xs text-gray-500 mb-4">Choisissez un mot de passe fort d&apos;au moins 8 caractères.</p>
+                <h2 className="text-base font-bold text-gray-900 mb-1">{tr.security.title}</h2>
+                <p className="text-xs text-gray-500 mb-4">{tr.security.title_desc}</p>
 
                 {succesMdp && (
                   <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 mb-4">
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    Mot de passe mis à jour avec succès.
+                    {tr.security.success}
                   </div>
                 )}
                 {erreurMdp && (
@@ -732,8 +743,8 @@ export default function ParametresPage() {
 
                 <form onSubmit={changerMotDePasse} className="space-y-3">
                   {[
-                    { label: 'Nouveau mot de passe', value: nouveauMdp, setter: setNouveauMdp },
-                    { label: 'Confirmer le mot de passe', value: confirmMdp, setter: setConfirmMdp },
+                    { label: tr.security.new_password, value: nouveauMdp, setter: setNouveauMdp },
+                    { label: tr.security.confirm_pw,   value: confirmMdp, setter: setConfirmMdp },
                   ].map(({ label, value, setter }) => (
                     <div key={label}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
@@ -769,25 +780,25 @@ export default function ParametresPage() {
                         ))}
                       </div>
                       <p className="text-xs text-gray-400">
-                        {nouveauMdp.length < 6 ? 'Faible' : nouveauMdp.length < 9 ? 'Moyen' : nouveauMdp.length < 12 ? 'Fort' : 'Très fort'}
+                        {nouveauMdp.length < 6 ? tr.security.weak : nouveauMdp.length < 9 ? tr.security.medium : nouveauMdp.length < 12 ? tr.security.strong : tr.security.very_strong}
                       </p>
                     </div>
                   )}
 
                   <button type="submit" disabled={savingMdp}
                     className="w-full py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60">
-                    {savingMdp ? 'Mise à jour…' : 'Mettre à jour le mot de passe'}
+                    {savingMdp ? tr.security.updating : tr.security.update_btn}
                   </button>
                 </form>
               </div>
 
               {/* Infos session */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Session active</h3>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">{tr.security.session_title}</h3>
                 <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
                   <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Session actuelle</p>
+                    <p className="text-sm font-medium text-gray-900">{tr.security.session_label}</p>
                     <p className="text-xs text-gray-500">{utilisateur.prenom} {utilisateur.nom} · {libelleRole(utilisateur.role)}</p>
                   </div>
                 </div>
@@ -795,14 +806,9 @@ export default function ParametresPage() {
 
               {/* Bonnes pratiques */}
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-                <h3 className="text-sm font-semibold text-amber-800 mb-2">Bonnes pratiques de sécurité</h3>
+                <h3 className="text-sm font-semibold text-amber-800 mb-2">{tr.security.tips_title}</h3>
                 <ul className="space-y-1.5 text-xs text-amber-700">
-                  {[
-                    'Utilisez un mot de passe unique d\'au moins 12 caractères',
-                    'Ne partagez jamais vos identifiants de connexion',
-                    'Déconnectez-vous sur les appareils partagés',
-                    'Changez votre mot de passe tous les 3 mois',
-                  ].map(tip => (
+                  {tr.security.tips.map((tip: string) => (
                     <li key={tip} className="flex items-start gap-1.5">
                       <span className="mt-0.5 flex-shrink-0">•</span>{tip}
                     </li>
@@ -1010,14 +1016,14 @@ export default function ParametresPage() {
 
               {/* ── Couleurs de l'entreprise ───────────────────────────── */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h2 className="text-base font-bold text-gray-900 mb-1">Couleurs de l&apos;application</h2>
-                <p className="text-xs text-gray-500 mb-5">Personnalisez les couleurs de l&apos;interface pour tous les utilisateurs de votre entreprise.</p>
+                <h2 className="text-base font-bold text-gray-900 mb-1">{tr.appearance.title}</h2>
+                <p className="text-xs text-gray-500 mb-5">{tr.appearance.title_desc}</p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
                   {/* Couleur primaire */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-2">Couleur principale</label>
-                    <p className="text-[11px] text-gray-400 mb-2">Sidebar, boutons, liens actifs</p>
+                    <label className="block text-xs font-semibold text-gray-700 mb-2">{tr.appearance.primary_color}</label>
+                    <p className="text-[11px] text-gray-400 mb-2">{tr.appearance.primary_color_desc}</p>
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <input
@@ -1051,8 +1057,8 @@ export default function ParametresPage() {
 
                   {/* Couleur accent */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-2">Couleur d&apos;accentuation</label>
-                    <p className="text-[11px] text-gray-400 mb-2">Boutons d&apos;action, badges, confirmations</p>
+                    <label className="block text-xs font-semibold text-gray-700 mb-2">{tr.appearance.accent_color}</label>
+                    <p className="text-[11px] text-gray-400 mb-2">{tr.appearance.accent_color_desc}</p>
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <input
@@ -1111,7 +1117,7 @@ export default function ParametresPage() {
                 {succesCouleurs && (
                   <div className="flex items-center gap-2 p-3 mb-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    Couleurs appliquées pour toute l&apos;entreprise.
+                    {tr.appearance.colors_saved}
                   </div>
                 )}
 
@@ -1130,7 +1136,7 @@ export default function ParametresPage() {
                     disabled={savingCouleurs}
                     className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50"
                   >
-                    {savingCouleurs ? 'Enregistrement...' : 'Appliquer à toute l\'entreprise'}
+                    {savingCouleurs ? tr.common.saving : tr.appearance.apply}
                   </button>
                   <button
                     onClick={() => {
@@ -1139,22 +1145,22 @@ export default function ParametresPage() {
                     }}
                     className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
                   >
-                    Réinitialiser
+                    {tr.appearance.reset}
                   </button>
                 </div>
               </div>
 
               {/* Thème */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h2 className="text-base font-bold text-gray-900 mb-1">Thème</h2>
-                <p className="text-xs text-gray-500 mb-4">Choisissez l&apos;apparence de l&apos;interface.</p>
+                <h2 className="text-base font-bold text-gray-900 mb-1">{tr.appearance.theme_title}</h2>
+                <p className="text-xs text-gray-500 mb-4">{tr.appearance.theme_desc}</p>
                 <div className="grid grid-cols-3 gap-3">
                   {([
-                    { id: 'light' as const, label: 'Clair',
+                    { id: 'light' as const, label: tr.appearance.light,
                       preview: <div className="w-full h-10 rounded-lg bg-white border border-gray-200 flex gap-1 p-1.5"><div className="w-4 bg-gray-200 rounded" /><div className="flex-1 bg-gray-100 rounded" /></div> },
-                    { id: 'dark' as const, label: 'Sombre',
+                    { id: 'dark' as const, label: tr.appearance.dark,
                       preview: <div className="w-full h-10 rounded-lg bg-gray-900 border border-gray-700 flex gap-1 p-1.5"><div className="w-4 bg-gray-700 rounded" /><div className="flex-1 bg-gray-800 rounded" /></div> },
-                    { id: 'system' as const, label: 'Système',
+                    { id: 'system' as const, label: tr.appearance.system,
                       preview: <div className="w-full h-10 rounded-lg border border-gray-200 flex overflow-hidden"><div className="flex-1 bg-white flex gap-0.5 p-1.5"><div className="w-2 bg-gray-200 rounded" /><div className="flex-1 bg-gray-100 rounded" /></div><div className="flex-1 bg-gray-900 flex gap-0.5 p-1.5"><div className="w-2 bg-gray-700 rounded" /><div className="flex-1 bg-gray-800 rounded" /></div></div> },
                   ] as const).map(({ id, label, preview }) => (
                     <button key={id} onClick={() => appliquerTheme(id)}
@@ -1174,28 +1180,47 @@ export default function ParametresPage() {
 
               {/* Langue & Région */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h2 className="text-base font-bold text-gray-900 mb-1">Langue & Région</h2>
-                <p className="text-xs text-gray-500 mb-4">Personnalisez l&apos;affichage selon vos préférences locales.</p>
+                <h2 className="text-base font-bold text-gray-900 mb-1">{tr.appearance.lang_title}</h2>
+                <p className="text-xs text-gray-500 mb-4">{tr.appearance.lang_desc}</p>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Langue de l&apos;interface</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{tr.appearance.interface_lang}</label>
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 flex-1 px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50">
-                        <span className="text-sm">🇫🇷</span>
-                        <span className="text-sm font-medium text-gray-700">Français</span>
-                        <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-semibold">Actif</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-1 px-3 py-2.5 border border-gray-100 rounded-xl bg-gray-50 opacity-50 cursor-not-allowed">
-                        <span className="text-sm">🇬🇧</span>
-                        <span className="text-sm text-gray-400">English</span>
-                        <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded-full font-semibold">Bientôt</span>
-                      </div>
+                      {([
+                        { code: 'fr', flag: '🇫🇷', label: 'Français' },
+                        { code: 'en', flag: '🇬🇧', label: 'English' },
+                      ] as const).map(({ code, flag, label }) => {
+                        const isActive = langue === code
+                        return (
+                          <button
+                            key={code}
+                            onClick={() => {
+                              setLangue(code)
+                              localStorage.setItem('visitpro-langue', code)
+                              window.dispatchEvent(new Event('visitpro-lang-change'))
+                            }}
+                            className={`flex items-center gap-2 flex-1 px-3 py-2.5 border-2 rounded-xl transition-all text-left
+                              ${isActive
+                                ? 'border-primary bg-primary/5'
+                                : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                              }`}
+                          >
+                            <span className="text-sm">{flag}</span>
+                            <span className={`text-sm font-medium ${isActive ? 'text-primary' : 'text-gray-700'}`}>{label}</span>
+                            {isActive && (
+                              <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-semibold">
+                                {code === 'fr' ? 'Actif' : 'Active'}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Format de date</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{tr.appearance.date_format}</label>
                     <select value={dateFormat} onChange={e => { setDateFormat(e.target.value); localStorage.setItem('visitpro-date-fmt', e.target.value) }}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
                       <option value="dd/mm/yyyy">JJ/MM/AAAA (ex: 22/06/2026)</option>
@@ -1205,7 +1230,7 @@ export default function ParametresPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Fuseau horaire</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{tr.appearance.timezone}</label>
                     <select value={fuseau} onChange={e => { setFuseau(e.target.value); localStorage.setItem('visitpro-fuseau', e.target.value) }}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
                       <option value="Africa/Abidjan">GMT+0 — Abidjan (Côte d&apos;Ivoire)</option>
@@ -1221,12 +1246,12 @@ export default function ParametresPage() {
 
               {/* À propos */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">À propos de VisitPro</h3>
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">{tr.appearance.about}</h3>
                 <p className="text-xs text-gray-500 mb-3">Logiciel de gestion des visiteurs et rendez-vous.</p>
                 <div className="space-y-1.5 text-xs text-gray-500">
-                  <div className="flex justify-between"><span>Version</span><span className="font-medium text-gray-700">1.0.0</span></div>
-                  <div className="flex justify-between"><span>Plan</span><span className="font-medium text-gray-700">{PLANS[(entreprise?.plan ?? 'starter') as Plan].nom}</span></div>
-                  <div className="flex justify-between"><span>Région</span><span className="font-medium text-gray-700">Côte d&apos;Ivoire</span></div>
+                  <div className="flex justify-between"><span>{tr.appearance.version}</span><span className="font-medium text-gray-700">1.0.0</span></div>
+                  <div className="flex justify-between"><span>{tr.appearance.plan}</span><span className="font-medium text-gray-700">{PLANS[(entreprise?.plan ?? 'starter') as Plan].nom}</span></div>
+                  <div className="flex justify-between"><span>{tr.appearance.region}</span><span className="font-medium text-gray-700">Côte d&apos;Ivoire</span></div>
                 </div>
               </div>
             </div>
