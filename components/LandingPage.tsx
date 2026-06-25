@@ -612,8 +612,6 @@ export default function LandingPage() {
                   'Sites — selon besoins',
                   'Visites illimitées',
                   'Toutes les fonctionnalités',
-                  'Intégrations personnalisées',
-                  'Support dédié',
                   'Formation incluse',
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-sm">
