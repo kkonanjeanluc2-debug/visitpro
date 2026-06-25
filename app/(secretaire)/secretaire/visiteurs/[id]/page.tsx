@@ -39,7 +39,7 @@ export default function FicheVisiteurPage() {
         .select('*, destinataire:utilisateurs!destinataire_id(id, nom, prenom, poste)')
         .eq('visiteur_id', visiteurId)
         .order('heure_arrivee', { ascending: false })
-        .limit(5),
+        .limit(20),
     ])
 
     if (!v) { router.push('/secretaire'); return }
@@ -129,25 +129,31 @@ export default function FicheVisiteurPage() {
           </div>
 
           {/* Préférences — lecture seule, encadré vert */}
-          {visiteur.preferences && (
-            <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
-              <div className="flex items-start gap-2">
-                <span className="text-base flex-shrink-0">💛</span>
-                <div>
-                  <p className="text-xs font-semibold text-green-800 mb-1">Préférences</p>
-                  <p className="text-sm text-green-700">{visiteur.preferences}</p>
-                </div>
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
+            <div className="flex items-start gap-2">
+              <span className="text-base flex-shrink-0">💛</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-green-800 mb-1">Préférences</p>
+                {visiteur.preferences
+                  ? <p className="text-sm text-green-700">{visiteur.preferences}</p>
+                  : <p className="text-xs text-green-600 italic">Aucune préférence enregistrée</p>
+                }
               </div>
             </div>
-          )}
+          </div>
 
           {/* Historique des sujets abordés */}
-          {visiteur.sujets_historique && visiteur.sujets_historique.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-base">📋</span>
-                <p className="text-xs font-semibold text-blue-800">Sujets abordés lors des visites</p>
-              </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base">📋</span>
+              <p className="text-xs font-semibold text-blue-800">
+                Sujets abordés lors des visites
+                {visiteur.sujets_historique && visiteur.sujets_historique.length > 0 && (
+                  <span className="ml-1 font-normal text-blue-600">({visiteur.sujets_historique.length})</span>
+                )}
+              </p>
+            </div>
+            {visiteur.sujets_historique && visiteur.sujets_historique.length > 0 ? (
               <ul className="space-y-1">
                 {[...visiteur.sujets_historique].reverse().map((sujet, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-sm text-blue-700">
@@ -156,8 +162,12 @@ export default function FicheVisiteurPage() {
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-blue-600 italic">
+                Les sujets s&apos;accumuleront ici à chaque fin de visite.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Colonne droite — 5 dernières visites */}
@@ -165,7 +175,7 @@ export default function FicheVisiteurPage() {
           <div className="bg-white border border-gray-200 rounded-2xl">
             <div className="p-5 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">
-                5 dernières visites
+                Historique des visites ({visites.length})
               </h2>
             </div>
             <div className="divide-y divide-gray-100">
@@ -194,9 +204,13 @@ export default function FicheVisiteurPage() {
                             {v.destinataire.poste && ` (${v.destinataire.poste})`}
                           </p>
                         )}
-                        {v.sujet_traite && (
-                          <p className="text-xs text-primary/80 mt-1 italic">Sujet : {v.sujet_traite}</p>
-                        )}
+                        {v.sujet_traite ? (
+                          <p className="text-xs text-primary/80 mt-1.5 italic bg-primary/5 px-2 py-1 rounded-lg">
+                            📋 {v.sujet_traite}
+                          </p>
+                        ) : v.statut === 'terminee' ? (
+                          <p className="text-xs text-gray-400 mt-1 italic">Aucun sujet renseigné</p>
+                        ) : null}
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-xs font-medium text-gray-700">{formatDate(v.heure_arrivee)}</p>
