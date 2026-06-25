@@ -50,8 +50,8 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
 
     if (!response.ok) {
       const msg = data.message ?? data.error ?? `Erreur HTTP ${response.status}`
-      console.error('Maileroo error:', msg)
-      return { success: false, erreur: msg }
+      console.error('Maileroo error:', response.status, JSON.stringify(data))
+      return { success: false, erreur: `${msg} (réponse: ${JSON.stringify(data)})` }
     }
 
     return { success: true, messageId: data.message_id ?? data.id ?? 'ok' }

@@ -1,24 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-
-const MAILEROO_API_KEY = process.env.MAILEROO_API_KEY ?? ''
-const FROM_EMAIL = process.env.MAILEROO_FROM_EMAIL ?? 'noreply@visiteurpro.com'
-const FROM_NAME = process.env.MAILEROO_FROM_NAME ?? 'VisitPro'
+import { envoyerEmail as mailerooEnvoyer } from '@/lib/email'
 
 async function envoyerEmail(to: string[], sujet: string, html: string): Promise<{ ok: boolean; erreur?: string }> {
-  if (!MAILEROO_API_KEY) return { ok: false, erreur: 'MAILEROO_API_KEY non configurée' }
   for (const email of to) {
-    const res = await fetch('https://smtp.maileroo.com/send', {
-      method: 'POST',
-      headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to: email, subject: sujet, html }),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      const msg = data.message ?? data.error ?? data.detail ?? `HTTP ${res.status}`
-      console.error('Maileroo error:', res.status, msg, data)
-      return { ok: false, erreur: msg }
-    }
+    const result = await mailerooEnvoyer({ to: email, sujet, html, texte: '' })
+    if (!result.success) return { ok: false, erreur: result.erreur }
   }
   return { ok: true }
 }
