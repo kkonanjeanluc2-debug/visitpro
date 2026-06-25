@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisitesAujourdhui } from '@/hooks/useVisites'
 import VisiteCard from '@/components/secretaire/VisiteCard'
 import Card from '@/components/ui/Card'
 import { createClient } from '@/lib/supabase/client'
 import { jouerSon, initialiserAudio } from '@/lib/sound'
+import { nomComplet } from '@/lib/utils'
+import type { Visite } from '@/types'
 
 const FILTRES = [
   { key: 'tous', label: 'Toutes' },
@@ -22,13 +24,17 @@ export default function VisitesPage() {
   const { utilisateur } = useAuth()
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const supabase = createClient()
+  const [vipAlerte, setVipAlerte] = useState<Visite | null>(null)
+  const prevVisitIdsRef = useRef<Set<string>>(new Set())
+  const isFirstLoadRef = useRef(true)
 
   // Initialise l'AudioContext au montage et le réactive sur chaque clic
   useEffect(() => initialiserAudio(), [])
 
+  // Pour les INSERT, le son est géré par la détection VIP ci-dessous.
+  // Pour les autres événements (UPDATE/DELETE), on joue changement_statut.
   const handleRealtime = useCallback((eventType: string) => {
-    if (eventType === 'INSERT') jouerSon('nouvelle_visite')
-    else jouerSon('changement_statut')
+    if (eventType !== 'INSERT') jouerSon('changement_statut')
   }, [])
 
   // Si l'utilisateur est assigné à un site (et n'est pas admin), filtrer par site
@@ -36,6 +42,28 @@ export default function VisitesPage() {
     ? utilisateur.site_id
     : undefined
   const { visites, loading } = useVisitesAujourdhui(utilisateur?.entreprise_id ?? null, handleRealtime, siteIdFiltre)
+
+  // Détection des nouvelles visites après chaque reload pour jouer le bon son
+  useEffect(() => {
+    if (loading) return
+    if (isFirstLoadRef.current) {
+      isFirstLoadRef.current = false
+      prevVisitIdsRef.current = new Set(visites.map(v => v.id))
+      return
+    }
+    const currentIds = new Set(visites.map(v => v.id))
+    const nouvelles = visites.filter(v => !prevVisitIdsRef.current.has(v.id))
+    if (nouvelles.length > 0) {
+      const vip = nouvelles.find(v => v.visiteur?.est_vip)
+      if (vip) {
+        jouerSon('visite_vip')
+        setVipAlerte(vip)
+      } else {
+        jouerSon('nouvelle_visite')
+      }
+    }
+    prevVisitIdsRef.current = currentIds
+  }, [visites, loading])
 
   const handleFaireEntrer = async (visiteId: string) => {
     const visite = visites.find((v) => v.id === visiteId)
@@ -68,6 +96,19 @@ export default function VisitesPage() {
         duree_visite: dureeVisite,
       })
       .eq('id', visiteId)
+
+    // Accumulation du sujet dans l'historique du visiteur
+    const sujet = visite?.sujet_traite?.trim()
+    if (sujet && visite?.visiteur_id) {
+      const { data: v } = await supabase
+        .from('visiteurs').select('sujets_historique').eq('id', visite.visiteur_id).single()
+      const hist = v?.sujets_historique ?? []
+      if (!hist.includes(sujet)) {
+        await supabase.from('visiteurs')
+          .update({ sujets_historique: [...hist, sujet] })
+          .eq('id', visite.visiteur_id)
+      }
+    }
   }
 
   const visitesFiltrees = filtreStatut === 'tous'
@@ -85,6 +126,34 @@ export default function VisitesPage() {
   return (
     <div className="p-4 lg:p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Visites du jour</h1>
+
+      {/* ─── Alerte visiteur VIP ─────────────────────────────── */}
+      {vipAlerte && (
+        <div className="mb-4 flex items-center gap-3 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-2xl shadow-lg animate-fade-in-down">
+          <span className="text-3xl flex-shrink-0 animate-bounce">👑</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-yellow-800 text-sm">Visiteur VIP arrivé !</p>
+            <p className="text-yellow-700 font-medium truncate">
+              {nomComplet(vipAlerte.nom_visiteur, vipAlerte.prenom_visiteur ?? undefined)}
+              {vipAlerte.organisation_visiteur && (
+                <span className="font-normal text-yellow-600"> — {vipAlerte.organisation_visiteur}</span>
+              )}
+            </p>
+            {vipAlerte.motif && (
+              <p className="text-xs text-yellow-600 mt-0.5 truncate">Motif : {vipAlerte.motif}</p>
+            )}
+          </div>
+          <button
+            onClick={() => setVipAlerte(null)}
+            className="flex-shrink-0 p-1.5 rounded-lg text-yellow-500 hover:text-yellow-700 hover:bg-yellow-100 transition-colors"
+            aria-label="Fermer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">

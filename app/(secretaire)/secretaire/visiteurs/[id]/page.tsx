@@ -140,6 +140,24 @@ export default function FicheVisiteurPage() {
               </div>
             </div>
           )}
+
+          {/* Historique des sujets abordés */}
+          {visiteur.sujets_historique && visiteur.sujets_historique.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">📋</span>
+                <p className="text-xs font-semibold text-blue-800">Sujets abordés lors des visites</p>
+              </div>
+              <ul className="space-y-1">
+                {[...visiteur.sujets_historique].reverse().map((sujet, i) => (
+                  <li key={i} className="flex items-start gap-1.5 text-sm text-blue-700">
+                    <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
+                    <span>{sujet}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Colonne droite — 5 dernières visites */}

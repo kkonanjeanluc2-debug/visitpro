@@ -35,7 +35,7 @@ export function initialiserAudio(): () => void {
   }
 }
 
-export type TypeSon = 'nouvelle_visite' | 'changement_statut' | 'decision'
+export type TypeSon = 'nouvelle_visite' | 'changement_statut' | 'decision' | 'visite_vip'
 
 export function jouerSon(type: TypeSon = 'changement_statut'): void {
   const ctx = _ctx
@@ -48,6 +48,13 @@ export function jouerSon(type: TypeSon = 'changement_statut'): void {
         note(ctx, 523.25, 0,    0.22)
         note(ctx, 659.25, 0.16, 0.22)
         note(ctx, 783.99, 0.32, 0.38)
+      } else if (type === 'visite_vip') {
+        // Fanfare royale : Sol-Do-Mi-Sol-Do (montée triomphale, plus fort)
+        noteVip(ctx, 783.99, 0,    0.18)
+        noteVip(ctx, 523.25, 0.18, 0.18)
+        noteVip(ctx, 659.25, 0.36, 0.18)
+        noteVip(ctx, 783.99, 0.54, 0.18)
+        noteVip(ctx, 1046.5, 0.72, 0.55)
       } else if (type === 'decision') {
         // Deux notes descendantes
         note(ctx, 880,    0,   0.22)
@@ -77,6 +84,22 @@ function note(ctx: AudioContext, freq: number, delai: number, duree: number) {
   const t = ctx.currentTime + delai
   gain.gain.setValueAtTime(0, t)
   gain.gain.linearRampToValueAtTime(0.25, t + 0.025)
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duree)
+  osc.start(t)
+  osc.stop(t + duree + 0.05)
+}
+
+function noteVip(ctx: AudioContext, freq: number, delai: number, duree: number) {
+  // Même que note() mais plus fort (0.45) et timbre triangle pour sonner "royal"
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.connect(gain)
+  gain.connect(ctx.destination)
+  osc.type = 'triangle'
+  osc.frequency.value = freq
+  const t = ctx.currentTime + delai
+  gain.gain.setValueAtTime(0, t)
+  gain.gain.linearRampToValueAtTime(0.45, t + 0.02)
   gain.gain.exponentialRampToValueAtTime(0.001, t + duree)
   osc.start(t)
   osc.stop(t + duree + 0.05)

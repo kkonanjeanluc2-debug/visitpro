@@ -266,6 +266,19 @@ export default function DashboardPage() {
     await supabase.from('visites').update({
       statut: 'terminee', heure_sortie: heureSortie.toISOString(), duree_visite: dureeVisite,
     }).eq('id', visiteId)
+
+    const sujet = visite?.sujet_traite?.trim()
+    if (sujet && visite?.visiteur_id) {
+      const { data: v } = await supabase
+        .from('visiteurs').select('sujets_historique').eq('id', visite.visiteur_id).single()
+      const hist = v?.sujets_historique ?? []
+      if (!hist.includes(sujet)) {
+        await supabase.from('visiteurs')
+          .update({ sujets_historique: [...hist, sujet] })
+          .eq('id', visite.visiteur_id)
+      }
+    }
+
     charger()
   }
 
