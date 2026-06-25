@@ -375,10 +375,12 @@ export default function AbonnementSection() {
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2.5">Modes de paiement acceptés</p>
         <div className="flex flex-wrap gap-2">
           {[
-            { label: 'Orange Money', cls: 'text-orange-600 bg-orange-50 border-orange-200' },
-            { label: 'Wave CI',      cls: 'text-blue-600 bg-blue-50 border-blue-200' },
-            { label: 'MTN MoMo',    cls: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
-            { label: 'Moov Money',  cls: 'text-green-600 bg-green-50 border-green-200' },
+            { label: 'Wave',               cls: 'text-blue-600 bg-blue-50 border-blue-200' },
+            { label: 'Orange Money',       cls: 'text-orange-600 bg-orange-50 border-orange-200' },
+            { label: 'MTN Mobile Money',   cls: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
+            { label: 'Moov Money',         cls: 'text-red-600 bg-red-50 border-red-200' },
+            { label: 'Carte Internationale', cls: 'text-purple-600 bg-purple-50 border-purple-200' },
+            { label: 'Carte Locale',       cls: 'text-gray-600 bg-gray-50 border-gray-200' },
           ].map(({ label, cls }) => (
             <span key={label} className={`px-3 py-1.5 border rounded-lg text-xs font-bold ${cls}`}>{label}</span>
           ))}
