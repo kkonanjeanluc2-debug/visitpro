@@ -169,6 +169,12 @@ export default function ParametresPage() {
     }
   }, [searchParams])
 
+  useEffect(() => {
+    if (utilisateur?.role === 'collaborateur') {
+      setSection(s => (s === 'entreprise' || s === 'sites' || s === 'equipe' || s === 'abonnement' || s === 'notifications') ? 'securite' : s)
+    }
+  }, [utilisateur?.role])
+
   // Applique le thème dès que les couleurs changent (prévisualisation en temps réel)
   useEffect(() => {
     applyTheme(couleurPrimaire, couleurAccent)
@@ -323,10 +329,13 @@ export default function ParametresPage() {
   if (!utilisateur) return null
 
   const isResponsableSite = utilisateur.permissions?.responsable_site === true && utilisateur.role === 'collaborateur'
+  const isCollaborateur = utilisateur.role === 'collaborateur'
   const planCourant = PLANS[(abonnement?.plan ?? entreprise?.plan ?? 'starter') as Plan]
   const limiteSites = !planCourant.multi_sites && sites.length >= 1
   // Sections visibles selon le rôle
+  const SECTIONS_COLLABORATEUR: Section[] = ['securite', 'apparence']
   const sectionsVisibles = SECTIONS.filter(s => {
+    if (isCollaborateur && !SECTIONS_COLLABORATEUR.includes(s.id)) return false
     if (isResponsableSite && s.id === 'abonnement') return false
     return true
   })
