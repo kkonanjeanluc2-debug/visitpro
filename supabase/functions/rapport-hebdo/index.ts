@@ -5,13 +5,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const MAILEROO_API_KEY = Deno.env.get('MAILEROO_API_KEY') ?? ''
-const FROM_EMAIL = Deno.env.get('MAILEROO_FROM_EMAIL') ?? 'noreply@visitpro.ci'
+const FROM_EMAIL = Deno.env.get('MAILEROO_FROM_EMAIL') ?? 'noreply@visiteurpro.com'
 const FROM_NAME = Deno.env.get('MAILEROO_FROM_NAME') ?? 'VisitPro'
 
 async function envoyerEmail(to: string[], sujet: string, html: string): Promise<boolean> {
   let ok = true
   for (const email of to) {
-    const res = await fetch('https://api.maileroo.com/v1/send', {
+    const res = await fetch('https://smtp.maileroo.com/send', {
       method: 'POST',
       headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to: email, subject: sujet, html }),

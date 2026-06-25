@@ -1,8 +1,8 @@
 // Envoi d'emails via Maileroo API REST
-// Endpoint : https://api.maileroo.com/v1/send
+// Endpoint : https://smtp.maileroo.com/send
 // Auth     : X-API-Key header
 
-const MAILEROO_API_URL = 'https://api.maileroo.com/v1/send'
+const MAILEROO_API_URL = 'https://smtp.maileroo.com/send'
 
 interface EnvoiEmailParams {
   to: string

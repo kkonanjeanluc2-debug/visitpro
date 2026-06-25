@@ -8,7 +8,7 @@ const FROM_NAME = process.env.MAILEROO_FROM_NAME ?? 'VisitPro'
 async function envoyerEmail(to: string[], sujet: string, html: string): Promise<{ ok: boolean; erreur?: string }> {
   if (!MAILEROO_API_KEY) return { ok: false, erreur: 'MAILEROO_API_KEY non configurée' }
   for (const email of to) {
-    const res = await fetch('https://api.maileroo.com/v1/send', {
+    const res = await fetch('https://smtp.maileroo.com/send', {
       method: 'POST',
       headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to: email, subject: sujet, html }),
