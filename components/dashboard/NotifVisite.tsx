@@ -19,6 +19,8 @@ interface NotifVisiteProps {
 
 export default function NotifVisite({ visite, isNew = false, rang, onDecision, onRediriger, onTerminer, utilisateur }: NotifVisiteProps) {
   const enCours = visite.statut === 'en_cours' || visite.statut === 'acceptee'
+  const destinataire = visite.destinataire as (Utilisateur & { nom: string; prenom: string; poste?: string }) | undefined
+  const afficherDestinataire = destinataire && utilisateur && destinataire.id !== utilisateur.id
   const refTime = enCours && visite.heure_entree ? visite.heure_entree : visite.heure_arrivee
 
   const [duree, setDuree] = useState(calculerDureeAttente(refTime))
@@ -82,6 +84,14 @@ export default function NotifVisite({ visite, isNew = false, rang, onDecision, o
             </div>
             {visite.organisation_visiteur && (
               <p className="text-sm text-gray-500">{visite.organisation_visiteur}</p>
+            )}
+            {afficherDestinataire && (
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium rounded-full">
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Pour&nbsp;: {nomComplet(destinataire.nom, destinataire.prenom)}{destinataire.poste ? ` — ${destinataire.poste}` : ''}
+              </span>
             )}
             <p className="text-sm text-gray-700 mt-1">{visite.motif}</p>
           </div>

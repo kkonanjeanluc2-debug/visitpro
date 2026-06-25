@@ -110,9 +110,9 @@ export default function DashboardPage() {
       .gte('heure_arrivee', today)
       .order('heure_arrivee', { ascending: true })
 
-    // Le dashboard est la vue personnelle : chacun voit uniquement ses propres visiteurs,
-    // sauf les responsables de site / gestionnaires de visites qui voient tout leur périmètre.
-    if (!utilisateur.permissions?.gestion_visites && !utilisateur.permissions?.responsable_site) {
+    // Patron/admin voient toutes les visites de leur périmètre.
+    // Les collaborateurs ne voient que leurs propres visites (sauf si gestion_visites ou responsable_site).
+    if (!isPrimaire && !utilisateur.permissions?.gestion_visites && !utilisateur.permissions?.responsable_site) {
       qAttente = qAttente.eq('destinataire_id', utilisateur.id)
       qEnCours = qEnCours.eq('destinataire_id', utilisateur.id)
     }
@@ -337,7 +337,8 @@ export default function DashboardPage() {
           <div className="space-y-4">
             {visitesEnCours.map(visite => (
               <NotifVisite key={visite.id} visite={visite} isNew={false}
-                onDecision={handleDecision} onRediriger={v => setRedirVisite(v)} onTerminer={handleTerminer} />
+                onDecision={handleDecision} onRediriger={v => setRedirVisite(v)} onTerminer={handleTerminer}
+                utilisateur={utilisateur ?? undefined} />
             ))}
           </div>
         </div>
