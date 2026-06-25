@@ -49,7 +49,11 @@ export default function EntreprisesPage() {
       ])
 
       const asList = (ents ?? []).map((e: Entreprise) => {
-        const abon = (abons ?? []).find((a: Abonnement) => a.entreprise_id === e.id)
+        const abonsEnt = (abons ?? []).filter((a: Abonnement) => a.entreprise_id === e.id)
+        const abon =
+          abonsEnt.find((a: Abonnement) => a.statut === 'actif') ??
+          abonsEnt.find((a: Abonnement) => a.statut === 'essai') ??
+          abonsEnt.sort((a: Abonnement, b: Abonnement) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
         const nb = (users ?? []).filter((u: { entreprise_id: string }) => u.entreprise_id === e.id).length
         return { ...e, abonnement: abon, nb_utilisateurs: nb }
       })
