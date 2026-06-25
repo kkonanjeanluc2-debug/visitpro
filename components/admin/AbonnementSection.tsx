@@ -92,7 +92,7 @@ export default function AbonnementSection() {
     if (plan === 'starter') return
     setPaiementLoading(plan)
     try {
-      const response = await fetch('/api/cinetpay-webhook', {
+      const response = await fetch('/api/geniuspay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'initier_paiement', plan, entreprise_id: utilisateur!.entreprise_id, facturation }),

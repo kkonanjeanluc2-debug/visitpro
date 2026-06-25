@@ -88,7 +88,7 @@ export default function AbonnementPage() {
     if (plan === 'starter') return
     setPaiementLoading(plan)
     try {
-      const response = await fetch('/api/cinetpay-webhook', {
+      const response = await fetch('/api/geniuspay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'initier_paiement', plan, entreprise_id: utilisateur!.entreprise_id, facturation }),
@@ -389,7 +389,7 @@ export default function AbonnementPage() {
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-3">
-          Paiements 100% sécurisés via CinetPay ·{' '}
+          Paiements 100% sécurisés via GeniusPay ·{' '}
           <a href="mailto:support@visitpro.ci" className="underline hover:text-gray-600">support@visitpro.ci</a>
         </p>
       </div>
