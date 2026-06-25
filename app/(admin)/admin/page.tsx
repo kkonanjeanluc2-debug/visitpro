@@ -1180,16 +1180,18 @@ export default function ParametresPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Langue de l&apos;interface</label>
-                    <select value={langue} onChange={e => { setLangue(e.target.value); localStorage.setItem('visitpro-langue', e.target.value) }}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
-                      <option value="fr">🇫🇷 Français</option>
-                      <option value="en">🇬🇧 English</option>
-                    </select>
-                    {langue === 'en' && (
-                      <p className="text-xs text-amber-600 mt-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                        La traduction complète de l&apos;interface sera disponible dans la prochaine mise à jour.
-                      </p>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 flex-1 px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50">
+                        <span className="text-sm">🇫🇷</span>
+                        <span className="text-sm font-medium text-gray-700">Français</span>
+                        <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-semibold">Actif</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-1 px-3 py-2.5 border border-gray-100 rounded-xl bg-gray-50 opacity-50 cursor-not-allowed">
+                        <span className="text-sm">🇬🇧</span>
+                        <span className="text-sm text-gray-400">English</span>
+                        <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded-full font-semibold">Bientôt</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
