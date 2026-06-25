@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
           amount:      montant,
           currency:    'XOF',
           description: `VisitPro — Abonnement ${plan} (${facturation === 'annuel' ? 'annuel' : 'mensuel'})`,
-          success_url: `${process.env.NEXT_PUBLIC_APP_URL}/admin/abonnement?paiement=success`,
-          error_url:   `${process.env.NEXT_PUBLIC_APP_URL}/admin/abonnement?paiement=error`,
+          success_url: `${process.env.NEXT_PUBLIC_APP_URL}/admin?section=abonnement&paiement=success`,
+          error_url:   `${process.env.NEXT_PUBLIC_APP_URL}/admin?section=abonnement&paiement=error`,
           metadata:    { entreprise_id, plan, facturation: facturation ?? 'mensuel' },
         }),
       })

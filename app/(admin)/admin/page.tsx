@@ -8,6 +8,7 @@ import { PLANS } from '@/types'
 import { formatDate, libelleRole } from '@/lib/utils'
 import { applyTheme } from '@/lib/theme'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import AbonnementSection from '@/components/admin/AbonnementSection'
 
 // ─── Secteurs ────────────────────────────────────────────────────────────────
@@ -80,7 +81,15 @@ function Toggle({ checked, onChange, label, desc }: { checked: boolean; onChange
 export default function ParametresPage() {
   const { utilisateur } = useAuth()
   const supabase = createClient()
-  const [section, setSection] = useState<Section>('entreprise')
+  const searchParams = useSearchParams()
+  const [section, setSection] = useState<Section>(() => {
+    if (typeof window !== 'undefined') {
+      const s = new URLSearchParams(window.location.search).get('section')
+      if (s && ['entreprise','sites','equipe','abonnement','securite','notifications','apparence'].includes(s)) return s as Section
+    }
+    return 'entreprise'
+  })
+  const [paiementResultat, setPaiementResultat] = useState<'success' | 'error' | null>(null)
 
   // Entreprise
   const [entreprise, setEntreprise] = useState<Entreprise | null>(null)
@@ -150,6 +159,15 @@ export default function ParametresPage() {
     setDateFormat(localStorage.getItem('visitpro-date-fmt') ?? 'dd/mm/yyyy')
     setFuseau(localStorage.getItem('visitpro-fuseau') ?? 'Africa/Abidjan')
   }, [utilisateur?.entreprise_id])
+
+  useEffect(() => {
+    const paiement = searchParams.get('paiement')
+    if (paiement === 'success' || paiement === 'error') {
+      setSection('abonnement')
+      setPaiementResultat(paiement)
+      setTimeout(() => setPaiementResultat(null), 8000)
+    }
+  }, [searchParams])
 
   // Applique le thème dès que les couleurs changent (prévisualisation en temps réel)
   useEffect(() => {
@@ -651,7 +669,29 @@ export default function ParametresPage() {
           )}
 
           {/* ══════ ABONNEMENT ══════ */}
-          {section === 'abonnement' && <AbonnementSection />}
+          {section === 'abonnement' && (
+            <div className="space-y-4">
+              {paiementResultat === 'success' && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl text-green-800">
+                  <svg className="w-5 h-5 flex-shrink-0 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <div>
+                    <p className="text-sm font-bold">Paiement effectué avec succès !</p>
+                    <p className="text-xs mt-0.5 text-green-700">Votre abonnement sera activé dès réception de la confirmation de paiement.</p>
+                  </div>
+                </div>
+              )}
+              {paiementResultat === 'error' && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-800">
+                  <svg className="w-5 h-5 flex-shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <div>
+                    <p className="text-sm font-bold">Paiement annulé ou échoué</p>
+                    <p className="text-xs mt-0.5 text-red-700">Aucun montant n&apos;a été prélevé. Réessayez ou contactez le support.</p>
+                  </div>
+                </div>
+              )}
+              <AbonnementSection />
+            </div>
+          )}
 
           {/* ══════ SÉCURITÉ ══════ */}
           {section === 'securite' && (
