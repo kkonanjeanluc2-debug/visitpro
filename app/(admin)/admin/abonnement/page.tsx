@@ -46,18 +46,20 @@ function libelleStatut(statut: string | undefined, jours: number | null) {
 type Feature = { label: string; key: keyof typeof PLANS.pro | 'utilisateurs' | 'visites' }
 
 const FEATURES: { label: string; proVal: string | boolean; enterpriseVal: string | boolean }[] = [
-  { label: 'Utilisateurs',             proVal: '5',            enterpriseVal: '25' },
-  { label: 'Sites',                    proVal: '1',            enterpriseVal: '3' },
-  { label: 'Visites / mois',           proVal: 'Illimitées',   enterpriseVal: 'Illimitées' },
-  { label: 'Badge visiteur numérique', proVal: true,           enterpriseVal: true },
-  { label: 'Notifications temps réel', proVal: true,           enterpriseVal: true },
-  { label: 'Agenda rendez-vous',        proVal: true,           enterpriseVal: true },
-  { label: 'Rapports & Export PDF',     proVal: true,           enterpriseVal: true },
-  { label: "Écran d'accueil",           proVal: true,           enterpriseVal: true },
-  { label: 'Liste noire / Sécurité',    proVal: true,           enterpriseVal: true },
-  { label: 'Messagerie interne',        proVal: false,          enterpriseVal: true },
-  { label: 'Multi-sites (3)',           proVal: false,          enterpriseVal: true },
+  { label: 'Badge visiteur numérique', proVal: true,  enterpriseVal: true  },
+  { label: 'Notifications temps réel', proVal: true,  enterpriseVal: true  },
+  { label: 'Agenda rendez-vous',        proVal: true,  enterpriseVal: true  },
+  { label: 'Rapports & Export PDF',     proVal: true,  enterpriseVal: true  },
+  { label: "Écran d'accueil",           proVal: true,  enterpriseVal: true  },
+  { label: 'Liste noire / Sécurité',    proVal: true,  enterpriseVal: true  },
+  { label: 'Messagerie interne',        proVal: false, enterpriseVal: true  },
+  { label: 'Multi-sites (3 sites)',     proVal: false, enterpriseVal: true  },
 ]
+
+const PLAN_META: Record<'pro' | 'enterprise', { users: string; visites: string }> = {
+  pro:        { users: '5 utilisateurs',  visites: 'Visites illimitées' },
+  enterprise: { users: '25 utilisateurs', visites: 'Visites illimitées' },
+}
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -309,6 +311,12 @@ export default function AbonnementPage() {
                   )}
                   {facturation === 'mensuel' && (
                     <p className="text-xs text-gray-400 mt-1">ou {formatFcfa(plan.prix_annuel ? Math.round(plan.prix_annuel / 12) : 0)}/mois en annuel</p>
+                  )}
+                  {planKey in PLAN_META && (
+                    <div className={`mt-3 flex flex-col gap-0.5 text-sm ${isPro ? 'text-accent/80' : 'text-primary/80'}`}>
+                      <span>{PLAN_META[planKey as 'pro' | 'enterprise'].users}</span>
+                      <span>{PLAN_META[planKey as 'pro' | 'enterprise'].visites}</span>
+                    </div>
                   )}
                 </div>
 
