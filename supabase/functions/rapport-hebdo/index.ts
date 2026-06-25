@@ -13,8 +13,8 @@ async function envoyerEmail(to: string[], sujet: string, html: string): Promise<
   for (const email of to) {
     const res = await fetch('https://smtp.maileroo.com/send', {
       method: 'POST',
-      headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: FROM_EMAIL, from_name: FROM_NAME, to: [email], subject: sujet, html }),
+      headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ from: FROM_EMAIL, from_name: FROM_NAME, to: email, subject: sujet, html }).toString(),
     })
     if (!res.ok) ok = false
   }

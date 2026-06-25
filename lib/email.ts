@@ -31,20 +31,21 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
   const fromName  = params.fromName  ?? process.env.MAILEROO_FROM_NAME  ?? 'VisitPro'
 
   try {
+    const form = new URLSearchParams()
+    form.append('from',      fromEmail)
+    form.append('from_name', fromName)
+    form.append('to',        params.to)
+    form.append('subject',   params.sujet)
+    form.append('html',      params.html)
+    if (params.texte) form.append('plain', params.texte)
+
     const response = await fetch(MAILEROO_API_URL, {
       method: 'POST',
       headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
+        'X-API-Key':    apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        from:    fromEmail,
-        from_name: fromName,
-        to:      [params.to],
-        subject: params.sujet,
-        html:    params.html,
-        plain:   params.texte ?? '',
-      }),
+      body: form.toString(),
     })
 
     const data = await response.json().catch(() => ({}))

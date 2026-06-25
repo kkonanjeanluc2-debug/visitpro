@@ -92,15 +92,15 @@ Deno.serve(async (req: Request) => {
 </html>`
 
         if (mailerooApiKey) {
+          const formRdv = new URLSearchParams()
+          formRdv.append('from', emailFrom)
+          formRdv.append('to', emailVisiteur)
+          formRdv.append('subject', `Rappel : votre rendez-vous demain — ${nomEnt}`)
+          formRdv.append('html', html)
           const res = await fetch('https://smtp.maileroo.com/send', {
             method: 'POST',
-            headers: { 'X-API-Key': mailerooApiKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              from: emailFrom,
-              to: [emailVisiteur],
-              subject: `Rappel : votre rendez-vous demain — ${nomEnt}`,
-              html,
-            }),
+            headers: { 'X-API-Key': mailerooApiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formRdv.toString(),
           })
 
           if (res.ok) {
