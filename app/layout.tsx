@@ -5,10 +5,6 @@ export const metadata: Metadata = {
   title: 'VisitPro — Gestion des visites d\'entreprise',
   description: 'Solution SaaS de gestion des visites et rendez-vous pour les entreprises de Côte d\'Ivoire',
   manifest: '/manifest.json',
-  icons: {
-    icon: '/icons/icon-192x192.png',
-    apple: '/icons/icon-192x192.png',
-  },
 }
 
 export const viewport: Viewport = {
