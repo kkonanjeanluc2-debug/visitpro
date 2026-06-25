@@ -487,7 +487,7 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
 
       {/* ─── Modal édition profil ──────────────────────────────────────────── */}
       {profilModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-16 sm:pb-4 px-0 sm:px-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setProfilModalOpen(false)} />
           <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col" style={{ maxHeight: 'min(90vh, 640px)' }}>
             {/* Header */}
