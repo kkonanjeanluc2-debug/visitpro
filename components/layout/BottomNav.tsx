@@ -25,11 +25,12 @@ export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProp
   const mainItems =
     ['secretaire', 'admin'].includes(role)
       ? [
-          { href: '/secretaire',             label: n.home,         icon: HomeIcon     },
-          { href: '/secretaire/visites',     label: n.visits,       icon: UsersIcon    },
-          { href: '/secretaire/rendez-vous', label: n.rdv,          icon: CalendarIcon },
+          { href: '/secretaire',              label: n.home,     icon: HomeIcon     },
+          { href: '/secretaire/visites',      label: n.visits,   icon: UsersIcon    },
+          { href: '/secretaire/visiteurs',    label: n.visitors, icon: PersonIcon   },
+          { href: '/secretaire/rendez-vous',  label: n.rdv,      icon: CalendarIcon },
           ...(planInfo.messagerie ? [{ href: '/secretaire/messages', label: n.messages, icon: ChatIcon }] : []),
-          { href: '/secretaire/registre',    label: n.register,     icon: DocumentIcon },
+          { href: '/secretaire/registre',     label: n.register, icon: DocumentIcon },
         ]
       : [
           { href: '/dashboard',             label: n.home,          icon: GridIcon, badge: notifCount },
@@ -162,6 +163,13 @@ function UserIcon({ className }: { className: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  )
+}
+function PersonIcon({ className }: { className: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }

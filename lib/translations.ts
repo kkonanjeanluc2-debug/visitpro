@@ -19,6 +19,7 @@ const t = {
       appointments: 'Rendez-vous',
       rdv:          'RDV',
       register:     'Registre',
+      visitors:     'Visiteurs',
     },
     common: {
       save:        'Enregistrer',
@@ -116,6 +117,7 @@ const t = {
       appointments: 'Appointments',
       rdv:          'Appt.',
       register:     'Register',
+      visitors:     'Visitors',
     },
     common: {
       save:        'Save',
@@ -200,7 +202,8 @@ export type Translations = {
   nav: {
     dashboard: string; my_visits: string; my_agenda: string; messages: string; stats: string
     settings: string; blacklist: string; reports: string; display: string; more: string
-    home: string; visits: string; visits_today: string; appointments: string; rdv: string; register: string
+    home: string; visits: string; visits_today: string; appointments: string; rdv: string
+    register: string; visitors: string
   }
   common: {
     save: string; saving: string; cancel: string; edit: string; delete: string; add: string
