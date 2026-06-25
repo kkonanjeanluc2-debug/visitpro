@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
             headers: { 'X-API-Key': mailerooApiKey, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               from: emailFrom,
-              to: emailVisiteur,
+              to: [emailVisiteur],
               subject: `Rappel : votre rendez-vous demain — ${nomEnt}`,
               html,
             }),

@@ -38,8 +38,9 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from:    `${fromName} <${fromEmail}>`,
-        to:      params.toName ? `${params.toName} <${params.to}>` : params.to,
+        from:    fromEmail,
+        from_name: fromName,
+        to:      [params.to],
         subject: params.sujet,
         html:    params.html,
         plain:   params.texte ?? '',

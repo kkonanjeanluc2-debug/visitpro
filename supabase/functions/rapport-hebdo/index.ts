@@ -14,7 +14,7 @@ async function envoyerEmail(to: string[], sujet: string, html: string): Promise<
     const res = await fetch('https://smtp.maileroo.com/send', {
       method: 'POST',
       headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to: email, subject: sujet, html }),
+      body: JSON.stringify({ from: FROM_EMAIL, from_name: FROM_NAME, to: [email], subject: sujet, html }),
     })
     if (!res.ok) ok = false
   }
