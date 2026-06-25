@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 const MAILEROO_API_KEY = process.env.MAILEROO_API_KEY ?? ''
-const FROM_EMAIL = process.env.MAILEROO_FROM_EMAIL ?? 'noreply@visitpro.ci'
+const FROM_EMAIL = process.env.MAILEROO_FROM_EMAIL ?? 'noreply@visiteurpro.com'
 const FROM_NAME = process.env.MAILEROO_FROM_NAME ?? 'VisitPro'
 
 async function envoyerEmail(to: string[], sujet: string, html: string): Promise<{ ok: boolean; erreur?: string }> {

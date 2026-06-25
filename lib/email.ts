@@ -27,7 +27,7 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
     return { success: false, erreur: 'Clé API email manquante' }
   }
 
-  const fromEmail = params.fromEmail ?? process.env.MAILEROO_FROM_EMAIL ?? 'noreply@visitpro.ci'
+  const fromEmail = params.fromEmail ?? process.env.MAILEROO_FROM_EMAIL ?? 'noreply@visiteurpro.com'
   const fromName  = params.fromName  ?? process.env.MAILEROO_FROM_NAME  ?? 'VisitPro'
 
   try {
