@@ -5,18 +5,22 @@ const MAILEROO_API_KEY = process.env.MAILEROO_API_KEY ?? ''
 const FROM_EMAIL = process.env.MAILEROO_FROM_EMAIL ?? 'noreply@visitpro.ci'
 const FROM_NAME = process.env.MAILEROO_FROM_NAME ?? 'VisitPro'
 
-async function envoyerEmail(to: string[], sujet: string, html: string): Promise<boolean> {
-  if (!MAILEROO_API_KEY) return false
-  let ok = true
+async function envoyerEmail(to: string[], sujet: string, html: string): Promise<{ ok: boolean; erreur?: string }> {
+  if (!MAILEROO_API_KEY) return { ok: false, erreur: 'MAILEROO_API_KEY non configurée' }
   for (const email of to) {
     const res = await fetch('https://api.maileroo.com/v1/send', {
       method: 'POST',
       headers: { 'X-API-Key': MAILEROO_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to: email, subject: sujet, html }),
     })
-    if (!res.ok) ok = false
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      const msg = data.message ?? data.error ?? data.detail ?? `HTTP ${res.status}`
+      console.error('Maileroo error:', res.status, msg, data)
+      return { ok: false, erreur: msg }
+    }
   }
-  return ok
+  return { ok: true }
 }
 
 function htmlRapport(opts: {
@@ -235,9 +239,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ succes: true, html, emails, mode: 'preview_only', message: 'MAILEROO_API_KEY non configurée — email non envoyé' })
   }
 
-  const ok = await envoyerEmail(emails, sujet, html)
+  const { ok, erreur } = await envoyerEmail(emails, sujet, html)
   if (!ok) {
-    return NextResponse.json({ error: 'Échec de l\'envoi via Maileroo' }, { status: 500 })
+    return NextResponse.json({ error: `Échec Maileroo : ${erreur ?? 'erreur inconnue'}` }, { status: 500 })
   }
 
   // Loguer dans rapports_envoyes

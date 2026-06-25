@@ -128,7 +128,7 @@ export default function RapportsPage() {
       const data = await res.json()
       if (res.ok) {
         const message = data.mode === 'preview_only'
-          ? `Prévisualisation générée (RESEND_API_KEY non configurée)`
+          ? `Prévisualisation générée (MAILEROO_API_KEY non configurée)`
           : `Rapport envoyé à ${config.emails_destinataires.join(', ')}`
         setTestResult({ ok: true, message, html: data.html })
         if (data.html) setPreviewHtml(data.html)
