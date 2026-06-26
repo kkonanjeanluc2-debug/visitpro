@@ -45,21 +45,27 @@ function libelleStatut(statut: string | undefined, jours: number | null) {
 
 type Feature = { label: string; key: keyof typeof PLANS.pro | 'utilisateurs' | 'visites' }
 
-const FEATURES: { label: string; proVal: string | boolean; enterpriseVal: string | boolean }[] = [
-  { label: 'Badge visiteur numérique', proVal: true,  enterpriseVal: true  },
-  { label: 'Notifications temps réel', proVal: true,  enterpriseVal: true  },
-  { label: 'Agenda rendez-vous',        proVal: true,  enterpriseVal: true  },
-  { label: 'Rapports & Export PDF',     proVal: true,  enterpriseVal: true  },
-  { label: "Écran d'accueil",           proVal: true,  enterpriseVal: true  },
-  { label: 'Liste noire / Sécurité',    proVal: true,  enterpriseVal: true  },
-  { label: 'Messagerie interne',        proVal: false, enterpriseVal: true  },
-  { label: 'Multi-sites (3 sites)',     proVal: false, enterpriseVal: true  },
+const PRO_FEATURES = [
+  { label: 'Badge visiteur numérique', ok: true  },
+  { label: 'Notifications temps réel', ok: true  },
+  { label: 'Agenda rendez-vous',        ok: true  },
+  { label: 'Rapports & Export PDF',     ok: true  },
+  { label: "Écran d'accueil",           ok: true  },
+  { label: 'Liste noire / Sécurité',    ok: true  },
+  { label: 'Messagerie interne',        ok: false },
+  { label: 'Multi-sites (3 sites)',     ok: false },
 ]
 
-const PLAN_META: Record<'pro' | 'enterprise', { users: string; visites: string }> = {
-  pro:        { users: '5 utilisateurs',  visites: 'Visites illimitées' },
-  enterprise: { users: '25 utilisateurs', visites: 'Visites illimitées' },
-}
+const ENTERPRISE_FEATURES = [
+  { label: 'Badge visiteur numérique', ok: true },
+  { label: 'Notifications temps réel', ok: true },
+  { label: 'Agenda rendez-vous',        ok: true },
+  { label: 'Rapports & Export PDF',     ok: true },
+  { label: "Écran d'accueil",           ok: true },
+  { label: 'Liste noire / Sécurité',    ok: true },
+  { label: 'Messagerie interne',        ok: true },
+  { label: 'Multi-sites (3 sites)',     ok: true },
+]
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -312,43 +318,32 @@ export default function AbonnementPage() {
                   {facturation === 'mensuel' && (
                     <p className="text-xs text-gray-400 mt-1">ou {formatFcfa(plan.prix_annuel ? Math.round(plan.prix_annuel / 12) : 0)}/mois en annuel</p>
                   )}
-                  {planKey in PLAN_META && (
-                    <div className={`mt-3 flex flex-col gap-0.5 text-sm ${isPro ? 'text-accent/80' : 'text-primary/80'}`}>
-                      <span>{PLAN_META[planKey as 'pro' | 'enterprise'].users}</span>
-                      <span>{PLAN_META[planKey as 'pro' | 'enterprise'].visites}</span>
-                    </div>
-                  )}
+                  <div className={`mt-3 flex flex-col gap-0.5 text-sm ${isPro ? 'text-accent/80' : 'text-primary/80'}`}>
+                    <span>{isPro ? '5 utilisateurs' : '25 utilisateurs'}</span>
+                    <span>Visites illimitées</span>
+                  </div>
                 </div>
 
                 {/* Features */}
                 <div className="flex-1 px-6 py-5 space-y-2.5">
-                  {FEATURES.map(({ label, proVal, enterpriseVal }) => {
-                    const val = isPro ? proVal : enterpriseVal
-                    const ok = val !== false
-                    return (
-                      <div key={label} className="flex items-center gap-3">
-                        {ok ? (
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isPro ? 'bg-accent/10' : 'bg-primary/10'}`}>
-                            <svg className={`w-3 h-3 ${isPro ? 'text-accent' : 'text-primary'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </div>
-                        )}
-                        <span className={`text-sm ${ok ? 'text-gray-700' : 'text-gray-300'}`}>
-                          {label}
-                          {ok && typeof val === 'string' && val !== 'true' && (
-                            <span className={`ml-1 font-semibold ${isPro ? 'text-accent' : 'text-primary'}`}>— {val}</span>
-                          )}
-                        </span>
-                      </div>
-                    )
-                  })}
+                  {(isPro ? PRO_FEATURES : ENTERPRISE_FEATURES).map(({ label, ok }) => (
+                    <div key={label} className="flex items-center gap-3">
+                      {ok ? (
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isPro ? 'bg-accent/10' : 'bg-primary/10'}`}>
+                          <svg className={`w-3 h-3 ${isPro ? 'text-accent' : 'text-primary'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </div>
+                      )}
+                      <span className={`text-sm ${ok ? 'text-gray-700' : 'text-gray-300'}`}>{label}</span>
+                    </div>
+                  ))}
                 </div>
 
                 {/* CTA */}
