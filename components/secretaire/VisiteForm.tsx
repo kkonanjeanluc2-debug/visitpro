@@ -29,6 +29,22 @@ interface VisiteFormProps {
   onSuccess: (visiteId: string) => void
 }
 
+const PIECE_OPTIONS = [
+  { value: 'cni',           label: "CNI — Carte Nationale d'Identité" },
+  { value: 'passeport',     label: 'Passeport'                        },
+  { value: 'permis',        label: 'Permis de conduire'               },
+  { value: 'sejour',        label: 'Carte de séjour / Titre de séjour' },
+  { value: 'attestation',   label: "Attestation d'identité"           },
+]
+
+const PIECE_CONFIG: Record<string, { label: string; placeholder: string; pattern?: string }> = {
+  cni:         { label: "N° CNI",              placeholder: 'Ex : CI0123456789012',   pattern: '[A-Za-z0-9]{8,20}' },
+  passeport:   { label: 'N° Passeport',         placeholder: 'Ex : A12345678',         pattern: '[A-Za-z0-9]{6,12}' },
+  permis:      { label: 'N° Permis de conduire', placeholder: 'Ex : 12/123456789',     pattern: '.{4,20}'           },
+  sejour:      { label: 'N° Carte de séjour',    placeholder: 'Ex : 0123456789',        pattern: '[0-9A-Za-z]{6,20}' },
+  attestation: { label: "N° Attestation",        placeholder: 'Ex : ATT-2024-001',      pattern: '.{4,30}'           },
+}
+
 const TYPE_VISITE_OPTIONS = [
   { value: 'spontanee', label: 'Visite spontanée' },
   { value: 'rdv', label: 'Rendez-vous programmé' },
@@ -62,6 +78,8 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
   const [typeVisite, setTypeVisite] = useState('spontanee')
   const [urgence, setUrgence] = useState('normal')
   const [rdvId, setRdvId] = useState('')
+  const [typePiece, setTypePiece] = useState('')
+  const [numeroPiece, setNumeroPiece] = useState('')
   const [loadingCollab, setLoadingCollab] = useState(true)
   const [blocageListeNoire, setBlocageListeNoire] = useState(false)
   const [blocageIgnore, setBlocageIgnore] = useState(false)
@@ -167,6 +185,8 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
     setPrenom(v.prenom ?? '')
     setOrganisation(v.organisation ?? '')
     setTelephone(v.telephone ?? '')
+    setTypePiece(v.type_piece_identite ?? '')
+    setNumeroPiece(v.numero_piece_identite ?? '')
     setShowSuggestions(false)
     checkListeNoire(v.nom, v.prenom ?? '', v.telephone ?? '', v.id)
   }
@@ -256,7 +276,10 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
         await supabase.rpc('incrementer_visites', { visiteur_id: visiteurId })
         await supabase
           .from('visiteurs')
-          .update({ derniere_visite: new Date().toISOString() })
+          .update({
+            derniere_visite: new Date().toISOString(),
+            ...(typePiece ? { type_piece_identite: typePiece, numero_piece_identite: numeroPiece.trim() || null } : {}),
+          })
           .eq('id', visiteurId)
       } else {
         const { data: nouveauVisiteur, error: errVisiteur } = await supabase
@@ -269,6 +292,7 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
             telephone: telephone.trim() || null,
             nombre_visites: 1,
             derniere_visite: new Date().toISOString(),
+            ...(typePiece ? { type_piece_identite: typePiece, numero_piece_identite: numeroPiece.trim() || null } : {}),
           })
           .select('id')
           .single()
@@ -321,6 +345,8 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
       setTypeVisite('spontanee')
       setUrgence('normal')
       setRdvId('')
+      setTypePiece('')
+      setNumeroPiece('')
 
       onSuccess(visite.id)
     } catch (err) {
@@ -473,6 +499,33 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
             placeholder="+225 07..."
           />
         </div>
+
+        {/* Pièce d'identité */}
+        <Select
+          label="Type de pièce d'identité"
+          value={typePiece}
+          onChange={(e) => { setTypePiece(e.target.value); setNumeroPiece('') }}
+          options={PIECE_OPTIONS}
+          placeholder="Sélectionner une pièce (optionnel)"
+        />
+        {typePiece && PIECE_CONFIG[typePiece] && (
+          <div className="relative">
+            <Input
+              label={PIECE_CONFIG[typePiece].label}
+              value={numeroPiece}
+              onChange={(e) => setNumeroPiece(e.target.value.toUpperCase())}
+              placeholder={PIECE_CONFIG[typePiece].placeholder}
+              pattern={PIECE_CONFIG[typePiece].pattern}
+            />
+            <span className="absolute right-3 top-8 text-lg pointer-events-none">
+              {typePiece === 'cni'         && '🪪'}
+              {typePiece === 'passeport'   && '📘'}
+              {typePiece === 'permis'      && '🚗'}
+              {typePiece === 'sejour'      && '📋'}
+              {typePiece === 'attestation' && '📄'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Visite */}

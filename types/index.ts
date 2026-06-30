@@ -79,6 +79,8 @@ export interface Visiteur {
   preferences?: string
   notes_privees?: string
   sujets_historique?: string[]
+  type_piece_identite?: string
+  numero_piece_identite?: string
   created_at: string
 }
 
