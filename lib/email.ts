@@ -38,8 +38,8 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
 
   try {
     const payload: Record<string, unknown> = {
-      from:    { email: fromEmail, name: fromName },
-      to:      [{ email: params.to, name: params.toName ?? '' }],
+      from:    { address: fromEmail, name: fromName },
+      to:      [{ address: params.to, name: params.toName ?? '' }],
       subject: params.sujet,
       html:    params.html,
     }
