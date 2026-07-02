@@ -75,8 +75,9 @@ export default function StatsPage() {
   const [filtreDestinataire, setFiltreDestinataire] = useState('')
   const [filtreMotif, setFiltreMotif] = useState('')
 
-  // Tri tableau visiteurs
+  // Tri + recherche tableau visiteurs
   const [triVisiteur, setTriVisiteur] = useState<'visites' | 'acceptees' | 'declinees'>('visites')
+  const [rechercheVisiteur, setRechercheVisiteur] = useState('')
 
   useEffect(() => {
     if (!utilisateur?.entreprise_id) return
@@ -161,8 +162,16 @@ export default function StatsPage() {
     if (triVisiteur === 'acceptees') arr.sort((a, b) => b.acceptees - a.acceptees)
     else if (triVisiteur === 'declinees') arr.sort((a, b) => b.declinees - a.declinees)
     else arr.sort((a, b) => b.nbVisites - a.nbVisites)
-    return arr.slice(0, 20)
+    return arr
   }, [visitesFiltrees, triVisiteur])
+
+  const visitesParVisiteurFiltrees = useMemo(() => {
+    if (!rechercheVisiteur.trim()) return visitesParVisiteur
+    const q = rechercheVisiteur.toLowerCase()
+    return visitesParVisiteur.filter(v =>
+      v.nom.toLowerCase().includes(q) || v.organisation.toLowerCase().includes(q)
+    )
+  }, [visitesParVisiteur, rechercheVisiteur])
 
   // ── Stats par collaborateur ─────────────────────────────────────────────────
 
@@ -425,55 +434,89 @@ export default function StatsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle>Visites par visiteur ({visitesParVisiteur.length})</CardTitle>
-              <div className="flex gap-1">
-                {([
-                  { key: 'visites', label: 'Total' },
-                  { key: 'acceptees', label: 'Satisfaits' },
-                  { key: 'declinees', label: 'Refusées' },
-                ] as const).map(t => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTriVisiteur(t.key)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors
-                      ${triVisiteur === t.key ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              <CardTitle>
+                Visiteurs
+                <span className="ml-2 text-sm font-normal text-gray-400">
+                  {rechercheVisiteur ? `${visitesParVisiteurFiltrees.length} / ${visitesParVisiteur.length}` : visitesParVisiteur.length}
+                </span>
+              </CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Recherche */}
+                <div className="relative">
+                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Rechercher..."
+                    value={rechercheVisiteur}
+                    onChange={e => setRechercheVisiteur(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-40"
+                  />
+                  {rechercheVisiteur && (
+                    <button onClick={() => setRechercheVisiteur('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      ×
+                    </button>
+                  )}
+                </div>
+                {/* Tri */}
+                <div className="flex gap-1">
+                  {([
+                    { key: 'visites', label: 'Total' },
+                    { key: 'acceptees', label: 'Satisfaits' },
+                    { key: 'declinees', label: 'Refusées' },
+                  ] as const).map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTriVisiteur(t.key)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors
+                        ${triVisiteur === t.key ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </CardHeader>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">#</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Visiteur</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Visites</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">Reçu</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-red-500 uppercase tracking-wide">Refusé</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Dernière</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {visitesParVisiteur.map((v, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-xs text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900">{v.nom}</p>
-                      {v.organisation && <p className="text-xs text-gray-400">{v.organisation}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900">{v.nbVisites}</td>
-                    <td className="px-4 py-3 text-right text-green-600 font-medium">{v.acceptees}</td>
-                    <td className="px-4 py-3 text-right text-red-500 font-medium">{v.declinees}</td>
-                    <td className="px-4 py-3 text-right text-xs text-gray-400">
-                      {new Date(v.derniere).toLocaleDateString('fr-CI', { day: 'numeric', month: 'short' })}
-                    </td>
+            <div className="overflow-y-auto" style={{ maxHeight: 360 }}>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white z-10">
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">#</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Visiteur</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Visites</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">Reçu</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-red-500 uppercase tracking-wide">Refusé</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Dernière</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {visitesParVisiteurFiltrees.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
+                        Aucun visiteur trouvé pour &quot;{rechercheVisiteur}&quot;
+                      </td>
+                    </tr>
+                  ) : visitesParVisiteurFiltrees.map((v, i) => (
+                    <tr key={i} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-2.5 text-xs text-gray-400">{i + 1}</td>
+                      <td className="px-4 py-2.5">
+                        <p className="font-semibold text-gray-900">{v.nom}</p>
+                        {v.organisation && <p className="text-xs text-gray-400">{v.organisation}</p>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-bold text-gray-900">{v.nbVisites}</td>
+                      <td className="px-4 py-2.5 text-right text-green-600 font-medium">{v.acceptees}</td>
+                      <td className="px-4 py-2.5 text-right text-red-500 font-medium">{v.declinees}</td>
+                      <td className="px-4 py-2.5 text-right text-xs text-gray-400">
+                        {new Date(v.derniere).toLocaleDateString('fr-CI', { day: 'numeric', month: 'short' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </Card>
       )}
