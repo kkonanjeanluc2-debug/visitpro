@@ -41,7 +41,8 @@ export async function GET() {
       ],
     })
 
-    return new NextResponse(pdf, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return new NextResponse(pdf as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
