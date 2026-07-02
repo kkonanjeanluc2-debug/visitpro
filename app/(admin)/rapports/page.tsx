@@ -39,6 +39,11 @@ export default function RapportsPage() {
   const [testLoading, setTestLoading] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; html?: string } | null>(null)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const [emailConfig, setEmailConfig] = useState<{ maileroo: boolean; cronSecret: boolean } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/email-config-check').then(r => r.json()).then(setEmailConfig).catch(() => null)
+  }, [])
 
   useEffect(() => {
     if (!utilisateur?.entreprise_id) return
@@ -128,9 +133,9 @@ export default function RapportsPage() {
       const data = await res.json()
       if (res.ok) {
         const message = data.mode === 'preview_only'
-          ? `Prévisualisation générée (MAILEROO_API_KEY non configurée)`
-          : `Rapport envoyé à ${config.emails_destinataires.join(', ')}`
-        setTestResult({ ok: true, message, html: data.html })
+          ? `⚠️ Aperçu généré uniquement — MAILEROO_API_KEY manquante dans Vercel, aucun email envoyé`
+          : `✅ Rapport envoyé à ${config.emails_destinataires.join(', ')}`
+        setTestResult({ ok: data.mode !== 'preview_only', message, html: data.html })
         if (data.html) setPreviewHtml(data.html)
         // Rafraîchir l'historique
         charger()
@@ -159,8 +164,31 @@ export default function RapportsPage() {
     <div className="p-4 lg:p-6 max-w-3xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Rapports hebdomadaires</h1>
-        <p className="text-gray-500 mt-1">Recevez automatiquement les statistiques de visites par email chaque lundi</p>
+        <p className="text-gray-500 mt-1">Recevez automatiquement les statistiques de visites par email</p>
       </div>
+
+      {/* Alerte MAILEROO non configurée */}
+      {emailConfig && !emailConfig.maileroo && (
+        <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 110 18A9 9 0 0112 3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-red-700">Service email non configuré</p>
+              <p className="text-xs text-red-600 mt-1 leading-relaxed">
+                La variable <code className="bg-red-100 px-1 rounded font-mono">MAILEROO_API_KEY</code> est absente de Vercel.
+                Les emails ne peuvent pas être envoyés.<br />
+                <strong>Pour corriger :</strong> Allez dans Vercel → votre projet → Settings → Environment Variables → ajoutez{' '}
+                <code className="bg-red-100 px-1 rounded font-mono">MAILEROO_API_KEY</code> et{' '}
+                <code className="bg-red-100 px-1 rounded font-mono">MAILEROO_FROM_EMAIL</code>, puis redéployez.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-5">
         {/* Configuration */}
