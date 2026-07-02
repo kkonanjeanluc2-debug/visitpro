@@ -17,12 +17,6 @@ const nextConfig = {
       },
     ],
   },
-  // PDFKit doit rester dans node_modules (pas bundlé) pour trouver ses .afm
-  serverExternalPackages: ['pdfkit'],
-  // Inclure tout le répertoire pdfkit dans le déploiement Vercel
-  outputFileTracingIncludes: {
-    '**': ['./node_modules/pdfkit/**/*'],
-  },
 }
 
 module.exports = withPWA(nextConfig)
