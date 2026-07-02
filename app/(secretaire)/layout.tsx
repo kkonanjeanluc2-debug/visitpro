@@ -6,6 +6,7 @@ import TopBar from '@/components/layout/TopBar'
 import NotificationHandler from '@/components/layout/NotificationHandler'
 import TrialBanner from '@/components/layout/TrialBanner'
 import EssaiExpire from '@/components/layout/EssaiExpire'
+import RdvProchainsBanner from '@/components/layout/RdvProchainsBanner'
 import { AuthProvider } from '@/contexts/AuthContext'
 import ThemeProvider from '@/components/providers/ThemeProvider'
 
@@ -69,6 +70,13 @@ export default async function SecretaireLayout({ children }: { children: React.R
           <div className="h-1 bg-gradient-to-r from-accent to-primary" />
           <TopBar utilisateur={utilisateur} />
           <NotificationHandler utilisateurId={utilisateur.id} />
+          {!isExpire && (
+            <RdvProchainsBanner
+              entrepriseId={utilisateur.entreprise_id}
+              role={utilisateur.role}
+              utilisateurId={utilisateur.id}
+            />
+          )}
 
           <main className="flex-1 overflow-y-auto pb-20 lg:pb-6">
             <AuthProvider utilisateur={utilisateur as never}>
