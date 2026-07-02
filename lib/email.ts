@@ -49,7 +49,7 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
       fd.append('html',      params.html)
       if (params.texte) fd.append('plain', params.texte)
 
-      const blob = new Blob([params.pieceJointe.contenu], {
+      const blob = new Blob([new Uint8Array(params.pieceJointe.contenu)], {
         type: params.pieceJointe.type ?? 'application/pdf',
       })
       fd.append('attachments[]', blob, params.pieceJointe.nomFichier)
