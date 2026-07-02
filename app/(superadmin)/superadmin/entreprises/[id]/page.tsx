@@ -5,6 +5,12 @@ import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Entreprise, Abonnement, Utilisateur, Plan, StatutAbonnement } from '@/types'
 
+async function expireTrials(): Promise<{ count: number }> {
+  const res = await fetch('/api/cron/expire-trials?superadmin=1')
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 const PLANS_INFO = {
   starter: { label: 'Starter', prix: 0, color: 'bg-gray-100 text-gray-700 border border-gray-200' },
   pro: { label: 'Pro', prix: 20000, color: 'bg-blue-100 text-blue-700 border border-blue-200' },
@@ -45,7 +51,7 @@ export default function EntrepriseDetailPage() {
   const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Modal states
+  // Modal abonnement
   const [modalOuvert, setModalOuvert] = useState(false)
   const [modalPlan, setModalPlan] = useState<Plan>('starter')
   const [modalStatut, setModalStatut] = useState<StatutAbonnement>('actif')
@@ -55,6 +61,16 @@ export default function EntrepriseDetailPage() {
   const [modalNotes, setModalNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Réinitialisation données
+  const [resetOuvert, setResetOuvert] = useState(false)
+  const [resetConfirm, setResetConfirm] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+
+  // Expiration manuelle essais
+  const [expirationLoading, setExpirationLoading] = useState(false)
+  const [expirationMsg, setExpirationMsg] = useState<string | null>(null)
 
   const charger = useCallback(async () => {
     setLoading(true)
@@ -102,6 +118,47 @@ export default function EntrepriseDetailPage() {
       d.setMonth(d.getMonth() + duree)
     }
     return d.toISOString()
+  }
+
+  const lancerExpiration = async () => {
+    setExpirationLoading(true)
+    setExpirationMsg(null)
+    try {
+      const res = await expireTrials()
+      setExpirationMsg(res.count === 0
+        ? 'Aucun essai expiré à traiter.'
+        : `${res.count} abonnement(s) expiré(s) — comptes désactivés.`)
+    } catch {
+      setExpirationMsg('Erreur lors de la vérification.')
+    } finally {
+      setExpirationLoading(false)
+      charger()
+    }
+  }
+
+  const resetDonnees = async () => {
+    setResetError(null)
+    setResetting(true)
+    try {
+      // Supprimer dans l'ordre pour respecter les FK (messages → visites → visiteurs/rdv)
+      await Promise.all([
+        supabase.from('messages_visite').delete().eq('entreprise_id', id),
+        supabase.from('notifications').delete().eq('entreprise_id', id),
+      ])
+      await supabase.from('visites').delete().eq('entreprise_id', id)
+      await Promise.all([
+        supabase.from('visiteurs').delete().eq('entreprise_id', id),
+        supabase.from('rendez_vous').delete().eq('entreprise_id', id),
+        supabase.from('liste_noire').delete().eq('entreprise_id', id),
+      ])
+      setResetOuvert(false)
+      setResetConfirm('')
+      charger()
+    } catch (e) {
+      setResetError(e instanceof Error ? e.message : 'Erreur inconnue')
+    } finally {
+      setResetting(false)
+    }
   }
 
   const sauvegarder = async () => {
@@ -304,6 +361,98 @@ export default function EntrepriseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Zone dangereuse */}
+      <div className="mt-8 border border-red-200 rounded-2xl p-5 bg-red-50/40">
+        <h2 className="font-semibold text-red-700 text-sm uppercase tracking-wide mb-1">Zone dangereuse</h2>
+        <p className="text-xs text-red-500 mb-4">Ces actions sont irréversibles. Procéder avec précaution.</p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => { setResetOuvert(true); setResetConfirm(''); setResetError(null) }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-red-300 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Réinitialiser les données
+          </button>
+          <button
+            onClick={lancerExpiration}
+            disabled={expirationLoading}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-300 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-50 transition-colors disabled:opacity-50"
+          >
+            {expirationLoading
+              ? <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            }
+            Vérifier essais expirés
+          </button>
+        </div>
+        {expirationMsg && (
+          <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{expirationMsg}</p>
+        )}
+      </div>
+
+      {/* Modal réinitialisation */}
+      {resetOuvert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !resetting && setResetOuvert(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-red-100 bg-red-50">
+              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-bold text-red-900">Réinitialiser les données</h3>
+                <p className="text-xs text-red-500">Action irréversible</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Ceci supprimera définitivement <strong>toutes les visites, visiteurs, rendez-vous, notifications et messages</strong> de <strong>{entreprise.nom}</strong>.
+              </p>
+              <p className="text-sm text-gray-600">Les comptes utilisateurs et l'abonnement resteront intacts.</p>
+              {resetError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{resetError}</div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                  Tapez <span className="font-bold text-gray-700">{entreprise.nom}</span> pour confirmer
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirm}
+                  onChange={e => setResetConfirm(e.target.value)}
+                  placeholder={entreprise.nom}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-300"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+              <button
+                onClick={() => setResetOuvert(false)}
+                disabled={resetting}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={resetDonnees}
+                disabled={resetting || resetConfirm !== entreprise.nom}
+                className="px-5 py-2 text-sm font-semibold bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-40 flex items-center gap-2"
+              >
+                {resetting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {resetting ? 'Suppression...' : 'Supprimer les données'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal abonnement */}
       {modalOuvert && (

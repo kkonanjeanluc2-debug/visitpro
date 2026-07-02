@@ -134,12 +134,17 @@ export async function middleware(request: NextRequest) {
 
   const { data: utilisateur } = await supabase
     .from('utilisateurs')
-    .select('role, permissions')
+    .select('role, permissions, actif, is_super_admin')
     .eq('id', user.id)
     .single()
 
   if (!utilisateur) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Compte désactivé (essai expiré ou suspension) → page dédiée
+  if (!utilisateur.actif && !utilisateur.is_super_admin && !pathname.startsWith('/compte-suspendu')) {
+    return NextResponse.redirect(new URL('/compte-suspendu', request.url))
   }
 
   const role = utilisateur.role
