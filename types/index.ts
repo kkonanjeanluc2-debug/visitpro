@@ -49,6 +49,7 @@ export interface Utilisateur {
   prenom: string
   role: Role
   poste?: string
+  service?: string
   email?: string
   telephone?: string
   photo_url?: string

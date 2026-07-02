@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, nom, prenom, role, poste, entreprise_id, mot_de_passe, site_id } = body
+    const { email, nom, prenom, role, poste, service, entreprise_id, mot_de_passe, site_id } = body
 
     if (!email || !nom || !prenom || !role || !entreprise_id || !mot_de_passe) {
       return NextResponse.json({ erreur: 'Tous les champs sont obligatoires' }, { status: 400 })
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       email: email.trim(),
       role,
       poste: poste?.trim() || null,
+      service: service?.trim() || null,
       site_id: site_id ?? null,
       actif: true,
     })

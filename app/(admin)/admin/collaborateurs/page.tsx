@@ -73,6 +73,7 @@ export default function CollaborateursPage() {
   const [editNom, setEditNom] = useState('')
   const [editPrenom, setEditPrenom] = useState('')
   const [editPoste, setEditPoste] = useState('')
+  const [editService, setEditService] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [editRole, setEditRole] = useState<Role>('collaborateur')
   const [editPerms, setEditPerms] = useState<UserPermissions>({})
@@ -84,6 +85,7 @@ export default function CollaborateursPage() {
   const [prenom, setPrenom] = useState('')
   const [email, setEmail] = useState('')
   const [poste, setPoste] = useState('')
+  const [service, setService] = useState('')
   const [role, setRole] = useState<Role>('collaborateur')
   const [siteId, setSiteId] = useState('')
   const [editSiteId, setEditSiteId] = useState('')
@@ -145,6 +147,7 @@ export default function CollaborateursPage() {
           prenom: prenom.trim(),
           role,
           poste: poste.trim() || null,
+          service: service.trim() || null,
           entreprise_id: utilisateur!.entreprise_id,
           mot_de_passe: motDePasse,
           site_id: isResponsableSite ? (utilisateur?.site_id ?? null) : (siteId || null),
@@ -171,6 +174,7 @@ export default function CollaborateursPage() {
     setEditNom(u.nom)
     setEditPrenom(u.prenom)
     setEditPoste(u.poste ?? '')
+    setEditService(u.service ?? '')
     setEditEmail(u.email ?? '')
     setEditRole(u.role as Role)
     setEditSiteId(u.site_id ?? '')
@@ -198,6 +202,7 @@ export default function CollaborateursPage() {
         nom: editNom.trim(),
         prenom: editPrenom.trim(),
         poste: editPoste.trim() || null,
+        service: editService.trim() || null,
         role: editRole,
         site_id: isResponsableSite ? (utilisateur?.site_id ?? null) : (editSiteId || null),
         permissions: permissionsToSave,
@@ -228,7 +233,7 @@ export default function CollaborateursPage() {
   }
 
   const resetForm = () => {
-    setNom(''); setPrenom(''); setEmail(''); setPoste(''); setRole('collaborateur')
+    setNom(''); setPrenom(''); setEmail(''); setPoste(''); setService(''); setRole('collaborateur')
     setSiteId(''); setMotDePasse(''); setShowPassword(false); setErreur(null)
   }
 
@@ -311,8 +316,13 @@ export default function CollaborateursPage() {
                   <Avatar nom={u.nom} prenom={u.prenom} photoUrl={u.photo_url ?? undefined} size="md" />
                   <div>
                     <p className="font-medium text-gray-900">{nomComplet(u.nom, u.prenom)}</p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm text-gray-500">{u.poste ?? '—'}</p>
+                      {u.service && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-violet-50 text-violet-600 border border-violet-100 rounded-full font-medium">
+                          {u.service}
+                        </span>
+                      )}
                       {(u.site as any)?.nom && (
                         <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-full font-medium">
                           {(u.site as any).nom}
@@ -398,7 +408,10 @@ export default function CollaborateursPage() {
             <Input label="Prénom *" value={editPrenom} onChange={(e) => setEditPrenom(e.target.value)} required />
             <Input label="Nom *" value={editNom} onChange={(e) => setEditNom(e.target.value)} required />
           </div>
-          <Input label="Poste" value={editPoste} onChange={(e) => setEditPoste(e.target.value)} placeholder="Directeur Commercial" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Poste" value={editPoste} onChange={(e) => setEditPoste(e.target.value)} placeholder="Directeur Commercial" />
+            <Input label="Service" value={editService} onChange={(e) => setEditService(e.target.value)} placeholder="Commercial, RH, IT…" />
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
@@ -486,7 +499,10 @@ export default function CollaborateursPage() {
             <Input label="Nom *" value={nom} onChange={(e) => setNom(e.target.value)} required />
           </div>
           <Input label="Email *" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Poste" value={poste} onChange={(e) => setPoste(e.target.value)} placeholder="Directeur Commercial" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Poste" value={poste} onChange={(e) => setPoste(e.target.value)} placeholder="Directeur Commercial" />
+            <Input label="Service" value={service} onChange={(e) => setService(e.target.value)} placeholder="Commercial, RH, IT…" />
+          </div>
           <Select
             label="Rôle *"
             value={role}

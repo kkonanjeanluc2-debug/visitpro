@@ -19,12 +19,13 @@ interface VisiteRaw {
   note_decision: string | null
   visiteur_id: string | null
   destinataire_id: string | null
-  destinataire: { id: string; nom: string; prenom: string } | null
+  destinataire: { id: string; nom: string; prenom: string; service?: string | null } | null
 }
 
 interface CollabStat {
   id: string
   nom: string
+  service: string
   nbVisites: number
   acceptees: number
   declinees: number
@@ -33,6 +34,15 @@ interface CollabStat {
   tauxAcceptation: number
   tempsAttenteMoyen: number
   score: 'excellent' | 'bien' | 'moyen' | 'faible'
+}
+
+interface ServiceStat {
+  service: string
+  nbVisites: number
+  acceptees: number
+  declinees: number
+  tauxAcceptation: number
+  nbCollabs: number
 }
 
 interface VisiteurStat {
@@ -74,6 +84,7 @@ export default function StatsPage() {
   // Filtres
   const [filtreDestinataire, setFiltreDestinataire] = useState('')
   const [filtreMotif, setFiltreMotif] = useState('')
+  const [filtreService, setFiltreService] = useState('')
 
   // Tri + recherche tableau visiteurs
   const [triVisiteur, setTriVisiteur] = useState<'visites' | 'acceptees' | 'declinees'>('visites')
@@ -94,7 +105,7 @@ export default function StatsPage() {
 
     let q = supabase
       .from('visites')
-      .select('statut, duree_attente, heure_arrivee, nom_visiteur, organisation_visiteur, motif, note_decision, visiteur_id, destinataire_id, destinataire:utilisateurs!destinataire_id(id, nom, prenom)')
+      .select('statut, duree_attente, heure_arrivee, nom_visiteur, organisation_visiteur, motif, note_decision, visiteur_id, destinataire_id, destinataire:utilisateurs!destinataire_id(id, nom, prenom, service)')
       .eq('entreprise_id', utilisateur.entreprise_id)
       .gte('heure_arrivee', debut.toISOString())
       .order('heure_arrivee', { ascending: false })
@@ -111,10 +122,14 @@ export default function StatsPage() {
 
   const visitesFiltrees = useMemo(() => {
     let v = visites
+    if (filtreService) v = v.filter(x => {
+      const d = x.destinataire
+      return d && !Array.isArray(d) && d.service === filtreService
+    })
     if (filtreDestinataire) v = v.filter(x => x.destinataire_id === filtreDestinataire)
     if (filtreMotif) v = v.filter(x => x.motif?.toLowerCase().includes(filtreMotif.toLowerCase()))
     return v
-  }, [visites, filtreDestinataire, filtreMotif])
+  }, [visites, filtreDestinataire, filtreMotif, filtreService])
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
 
@@ -182,8 +197,9 @@ export default function StatsPage() {
       if (!d || Array.isArray(d)) continue
       const id  = d.id
       const nom = `${d.prenom} ${d.nom}`.trim()
+      const svc = d.service ?? ''
       if (!map[id]) {
-        map[id] = { id, nom, nbVisites: 0, acceptees: 0, declinees: 0, enAttente: 0, redirigees: 0, tauxAcceptation: 0, tempsAttenteMoyen: 0, score: 'faible' }
+        map[id] = { id, nom, service: svc, nbVisites: 0, acceptees: 0, declinees: 0, enAttente: 0, redirigees: 0, tauxAcceptation: 0, tempsAttenteMoyen: 0, score: 'faible' }
       }
       map[id].nbVisites++
       if (['acceptee', 'en_cours', 'terminee'].includes(v.statut)) map[id].acceptees++
@@ -198,6 +214,24 @@ export default function StatsPage() {
       return { ...c, tauxAcceptation: taux, tempsAttenteMoyen: tempsMoy, score: scoreCollab(taux, c.nbVisites) }
     }).sort((a, b) => b.nbVisites - a.nbVisites)
   }, [visitesFiltrees])
+
+  // ── Stats par service ────────────────────────────────────────────────────────
+
+  const serviceStats = useMemo((): ServiceStat[] => {
+    const map: Record<string, ServiceStat> = {}
+    for (const c of collabStats) {
+      const svc = c.service || 'Sans service'
+      if (!map[svc]) map[svc] = { service: svc, nbVisites: 0, acceptees: 0, declinees: 0, tauxAcceptation: 0, nbCollabs: 0 }
+      map[svc].nbVisites  += c.nbVisites
+      map[svc].acceptees  += c.acceptees
+      map[svc].declinees  += c.declinees
+      map[svc].nbCollabs  += 1
+    }
+    return Object.values(map).map(s => ({
+      ...s,
+      tauxAcceptation: s.nbVisites > 0 ? Math.round((s.acceptees / s.nbVisites) * 100) : 0,
+    })).sort((a, b) => b.nbVisites - a.nbVisites)
+  }, [collabStats])
 
   // ── Visites par motif ────────────────────────────────────────────────────────
 
@@ -221,10 +255,20 @@ export default function StatsPage() {
     for (const v of visites) {
       const d = v.destinataire
       if (!d || Array.isArray(d) || seen.has(d.id)) continue
+      if (filtreService && d.service !== filtreService) continue
       seen.add(d.id)
       list.push({ id: d.id, nom: `${d.prenom} ${d.nom}`.trim() })
     }
     return list.sort((a, b) => a.nom.localeCompare(b.nom))
+  }, [visites, filtreService])
+
+  const servicesList = useMemo(() => {
+    const set = new Set<string>()
+    for (const v of visites) {
+      const d = v.destinataire
+      if (d && !Array.isArray(d) && d.service) set.add(d.service)
+    }
+    return Array.from(set).sort()
   }, [visites])
 
   const motifsList = useMemo(() => {
@@ -271,7 +315,7 @@ export default function StatsPage() {
 
   if (!utilisateur) return null
 
-  const filtersActifs = filtreDestinataire || filtreMotif
+  const filtersActifs = filtreDestinataire || filtreMotif || filtreService
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto space-y-6">
@@ -302,20 +346,35 @@ export default function StatsPage() {
 
       {/* ── Filtres ────────────────────────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-48">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Personne visitée</label>
+        {servicesList.length > 0 && (
+          <div className="flex-1 min-w-40">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Service</label>
+            <select
+              value={filtreService}
+              onChange={e => { setFiltreService(e.target.value); setFiltreDestinataire('') }}
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+            >
+              <option value="">Tous les services</option>
+              {servicesList.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex-1 min-w-40">
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Collaborateur</label>
           <select
             value={filtreDestinataire}
             onChange={e => setFiltreDestinataire(e.target.value)}
             className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
           >
-            <option value="">Tous les collaborateurs</option>
+            <option value="">{filtreService ? `Tous (${filtreService})` : 'Tous les collaborateurs'}</option>
             {destinatairesList.map(d => (
               <option key={d.id} value={d.id}>{d.nom}</option>
             ))}
           </select>
         </div>
-        <div className="flex-1 min-w-48">
+        <div className="flex-1 min-w-40">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Motif de visite</label>
           <select
             value={filtreMotif}
@@ -330,7 +389,7 @@ export default function StatsPage() {
         </div>
         {filtersActifs && (
           <button
-            onClick={() => { setFiltreDestinataire(''); setFiltreMotif('') }}
+            onClick={() => { setFiltreDestinataire(''); setFiltreMotif(''); setFiltreService('') }}
             className="text-sm text-red-500 hover:text-red-700 border border-red-200 rounded-xl px-3 py-2 hover:bg-red-50 transition-colors whitespace-nowrap"
           >
             ✕ Effacer filtres
@@ -521,12 +580,66 @@ export default function StatsPage() {
         </Card>
       )}
 
+      {/* ── Stats par service ──────────────────────────────────────────────── */}
+      {!loading && serviceStats.length > 1 && !filtreService && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Visites par service</CardTitle>
+          </CardHeader>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Service</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Collabs</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">Acceptées</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-red-500 uppercase tracking-wide">Refusées</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Taux acc.</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {serviceStats.map((s, i) => (
+                  <tr key={i} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setFiltreService(s.service === 'Sans service' ? '' : s.service)}>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 text-violet-700 border border-violet-100 rounded-full text-xs font-semibold">
+                        {s.service}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-500 text-xs">{s.nbCollabs}</td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900">{s.nbVisites}</td>
+                    <td className="px-4 py-3 text-right text-green-600 font-medium">{s.acceptees}</td>
+                    <td className="px-4 py-3 text-right text-red-500 font-medium">{s.declinees}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-bold ${s.tauxAcceptation >= 75 ? 'text-green-600' : s.tauxAcceptation >= 50 ? 'text-blue-600' : s.tauxAcceptation >= 25 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {s.tauxAcceptation}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-xs text-primary hover:underline">Filtrer →</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       {/* ── Rentabilité par collaborateur ──────────────────────────────────── */}
       {!loading && collabStats.length > 0 && (
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Performance & rentabilité par collaborateur</CardTitle>
+              <CardTitle>
+                Performance par collaborateur
+                {filtreService && (
+                  <span className="ml-2 text-sm font-normal text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">
+                    {filtreService}
+                  </span>
+                )}
+              </CardTitle>
               <p className="text-xs text-gray-400 mt-0.5">
                 Basé sur le taux d&apos;acceptation des visites — un fort taux de refus peut signaler un collaborateur surchargé ou peu disponible
               </p>
@@ -537,6 +650,7 @@ export default function StatsPage() {
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Collaborateur</th>
+                  {!filtreService && <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Service</th>}
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">Acceptées</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-red-500 uppercase tracking-wide">Refusées</th>
@@ -559,6 +673,17 @@ export default function StatsPage() {
                           <span className="font-semibold text-gray-900">{c.nom}</span>
                         </div>
                       </td>
+                      {!filtreService && (
+                        <td className="px-4 py-3">
+                          {c.service ? (
+                            <span className="text-xs px-2 py-0.5 bg-violet-50 text-violet-600 border border-violet-100 rounded-full font-medium">
+                              {c.service}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right font-bold text-gray-900">{c.nbVisites}</td>
                       <td className="px-4 py-3 text-right text-green-600 font-medium">{c.acceptees}</td>
                       <td className="px-4 py-3 text-right text-red-500 font-medium">{c.declinees}</td>
