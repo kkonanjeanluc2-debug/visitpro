@@ -17,11 +17,11 @@ const nextConfig = {
       },
     ],
   },
-  // Inclure les fichiers de polices PDFKit dans les bundles serverless Vercel
+  // PDFKit doit rester dans node_modules (pas bundlé) pour trouver ses .afm
+  serverExternalPackages: ['pdfkit'],
+  // Inclure tout le répertoire pdfkit dans le déploiement Vercel
   outputFileTracingIncludes: {
-    '/api/test-pdf': ['./node_modules/pdfkit/js/data/**/*'],
-    '/api/rapport-test': ['./node_modules/pdfkit/js/data/**/*'],
-    '/api/cron/envoyer-rapports': ['./node_modules/pdfkit/js/data/**/*'],
+    '**': ['./node_modules/pdfkit/**/*'],
   },
 }
 
