@@ -86,105 +86,135 @@ export default function RdvProchainsBanner({ entrepriseId, role, utilisateurId }
 
   if (!rdvs.length) return null
 
-  const today    = new Date().toISOString().split('T')[0]
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const today        = new Date().toISOString().split('T')[0]
+  const tomorrow     = new Date(Date.now() + 86400000).toISOString().split('T')[0]
   const nbAujourdhui = rdvs.filter(r => r.date_rdv === today).length
   const nbDemain     = rdvs.filter(r => r.date_rdv === tomorrow).length
-
-  const resumé = [
-    nbAujourdhui > 0 && `${nbAujourdhui} aujourd'hui`,
-    nbDemain > 0     && `${nbDemain} demain`,
-  ].filter(Boolean).join(' · ')
+  const hasToday     = nbAujourdhui > 0
 
   return (
-    <div className="bg-indigo-50 border-b border-indigo-200">
-      {/* Barre de titre cliquable */}
+    <div className={`border-b shadow-sm ${hasToday ? 'bg-gradient-to-r from-orange-500 to-amber-500' : 'bg-gradient-to-r from-[#1E3A5F] to-indigo-700'}`}>
+
+      {/* ── Barre de titre ────────────────────────────────────────────────── */}
       <button
         onClick={() => setOuvert(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-indigo-100/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:brightness-95 transition-all"
       >
-        <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-indigo-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span className="text-sm font-semibold text-indigo-800">
-            {rdvs.length} rendez-vous à venir
-          </span>
-          <span className="text-xs text-indigo-500 font-normal">— {resumé}</span>
+        <div className="flex items-center gap-3">
+          {/* Icône + dot pulsé si RDV aujourd'hui */}
+          <div className="relative flex-shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            {hasToday && (
+              <span className="absolute -top-1 -right-1 w-3 h-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
+              </span>
+            )}
+          </div>
+
+          {/* Texte */}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-white">
+                {hasToday
+                  ? `${nbAujourdhui} RDV aujourd'hui${nbDemain > 0 ? ` · ${nbDemain} demain` : ''}`
+                  : `${nbDemain} rendez-vous demain`}
+              </span>
+              <span className="bg-white/25 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {rdvs.length}
+              </span>
+            </div>
+            <p className="text-xs text-white/70 mt-0.5">
+              {hasToday ? 'Attention requise — vérifiez votre agenda' : 'Planifiez votre journée à l\'avance'}
+            </p>
+          </div>
         </div>
+
+        {/* Chevron */}
         <svg
-          className={`w-4 h-4 text-indigo-500 transition-transform ${ouvert ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-white/80 transition-transform flex-shrink-0 ${ouvert ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
-      {/* Liste des RDV */}
+      {/* ── Liste des RDV ─────────────────────────────────────────────────── */}
       {ouvert && (
-        <div className="px-4 pb-3 space-y-2">
+        <div className="px-3 pb-3 space-y-2">
           {rdvs.map(rdv => {
             const email     = emailDuRdv(rdv)
             const nom       = nomVisiteurRdv(rdv)
             const destinat  = rdv.destinataire ? `${(rdv.destinataire as any).prenom ?? ''} ${(rdv.destinataire as any).nom ?? ''}`.trim() : ''
             const estEnvoyé = rappelEnvoye.has(rdv.id)
             const etat      = envois[rdv.id]
+            const isToday   = rdv.date_rdv === today
             const jourLabel = labelJour(rdv.date_rdv, today, tomorrow)
 
             return (
               <div
                 key={rdv.id}
-                className="flex items-center justify-between gap-3 bg-white rounded-xl border border-indigo-100 px-3 py-2.5 shadow-sm"
+                className="flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-3 shadow-md"
               >
-                {/* Infos RDV */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{nom}</p>
-                    <p className="text-xs text-gray-500">
-                      <span className="font-medium text-indigo-600">{jourLabel} à {rdv.heure_debut}</span>
-                      {destinat && <> · avec {destinat}</>}
-                      {rdv.titre && <> · <em className="not-italic text-gray-400">{rdv.titre}</em></>}
-                    </p>
-                  </div>
+                {/* Bandeau coloré gauche */}
+                <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${isToday ? 'bg-orange-400' : 'bg-indigo-400'}`} />
+
+                {/* Heure en évidence */}
+                <div className={`flex-shrink-0 text-center w-14 px-1 py-1.5 rounded-lg ${isToday ? 'bg-orange-50' : 'bg-indigo-50'}`}>
+                  <p className={`text-sm font-extrabold leading-none ${isToday ? 'text-orange-600' : 'text-indigo-600'}`}>
+                    {rdv.heure_debut.slice(0, 5)}
+                  </p>
+                  <p className={`text-[10px] font-semibold mt-0.5 ${isToday ? 'text-orange-400' : 'text-indigo-400'}`}>
+                    {isToday ? "Auj." : 'Demain'}
+                  </p>
+                </div>
+
+                {/* Infos visiteur */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-900 truncate">{nom}</p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {destinat && <span>avec {destinat}</span>}
+                    {rdv.titre && <span className="text-gray-400"> · {rdv.titre}</span>}
+                  </p>
                 </div>
 
                 {/* Bouton rappel */}
                 <div className="flex-shrink-0">
                   {!email ? (
-                    <span className="text-xs text-gray-400 italic">Pas d&apos;email</span>
+                    <span className="text-xs text-gray-300 italic">Sans email</span>
                   ) : estEnvoyé || etat === 'ok' ? (
-                    <span className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 border border-green-200 px-2.5 py-1.5 rounded-lg">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Rappel envoyé
+                      Envoyé
                     </span>
                   ) : etat === 'err' ? (
-                    <button
-                      onClick={() => envoyerRappel(rdv)}
-                      className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg hover:bg-red-100 transition-colors"
-                    >
+                    <button onClick={() => envoyerRappel(rdv)}
+                      className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition-colors">
                       Réessayer
                     </button>
                   ) : (
                     <button
                       onClick={() => envoyerRappel(rdv)}
                       disabled={etat === 'loading'}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-200 transition-colors disabled:opacity-50"
+                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50 shadow-sm
+                        ${isToday
+                          ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
                     >
                       {etat === 'loading' ? (
-                        <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                       )}
-                      {etat === 'loading' ? 'Envoi...' : 'Envoyer rappel'}
+                      {etat === 'loading' ? 'Envoi...' : 'Rappel'}
                     </button>
                   )}
                 </div>
