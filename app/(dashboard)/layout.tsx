@@ -28,25 +28,39 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: abonnement } = await supabase
     .from('abonnements')
-    .select('statut, date_fin_essai')
+    .select('statut, date_fin_essai, date_fin')
     .eq('entreprise_id', utilisateur.entreprise_id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  const now       = new Date()
-  const isEssai   = abonnement?.statut === 'essai'
-  const dateFin   = abonnement?.date_fin_essai ? new Date(abonnement.date_fin_essai) : null
-  const isExpire  = isEssai && dateFin !== null && dateFin < now
-  const joursRestants =
-    isEssai && dateFin && !isExpire
-      ? Math.max(0, Math.ceil((dateFin.getTime() - now.getTime()) / 86400000))
-      : null
+  const now = new Date()
+
+  const isEssai        = abonnement?.statut === 'essai'
+  const dateFinEssai   = abonnement?.date_fin_essai ? new Date(abonnement.date_fin_essai) : null
+  const isEssaiExpire  = isEssai && dateFinEssai !== null && dateFinEssai < now
+  const joursEssai     = isEssai && dateFinEssai && !isEssaiExpire
+    ? Math.max(0, Math.ceil((dateFinEssai.getTime() - now.getTime()) / 86400000))
+    : null
+
+  const isActif        = abonnement?.statut === 'actif'
+  const dateFinActif   = abonnement?.date_fin ? new Date(abonnement.date_fin) : null
+  const isActifExpire  = isActif && dateFinActif !== null && dateFinActif < now
+  const joursActif     = isActif && dateFinActif && !isActifExpire
+    ? Math.max(0, Math.ceil((dateFinActif.getTime() - now.getTime()) / 86400000))
+    : null
+
+  const isExpire          = isEssaiExpire || isActifExpire
+  const typeExpire        = isActifExpire ? 'abonnement' : 'essai'
+  const showRenewalBanner = isActif && !isActifExpire && joursActif !== null && joursActif <= 14
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {isEssai && !isExpire && joursRestants !== null && (
-        <TrialBanner joursRestants={joursRestants} />
+      {isEssai && !isEssaiExpire && joursEssai !== null && (
+        <TrialBanner joursRestants={joursEssai} type="essai" />
+      )}
+      {showRenewalBanner && joursActif !== null && (
+        <TrialBanner joursRestants={joursActif} type="renouvellement" />
       )}
 
       <div className="flex flex-1 min-h-0">
@@ -59,7 +73,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <main className="flex-1 overflow-y-auto pb-20 lg:pb-6">
             <AuthProvider utilisateur={utilisateur as never}>
               <ThemeProvider />
-              {isExpire ? <EssaiExpire role={utilisateur.role} /> : children}
+              {isExpire ? <EssaiExpire role={utilisateur.role} type={typeExpire} /> : children}
             </AuthProvider>
           </main>
         </div>
