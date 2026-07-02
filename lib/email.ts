@@ -1,8 +1,9 @@
-// Envoi d'emails via Maileroo API REST
-// Endpoint : https://smtp.maileroo.com/send
+// Envoi d'emails via Maileroo API REST v2
+// Endpoint : https://smtp.maileroo.com/api/v2/emails
 // Auth     : X-API-Key header
+// Body     : JSON (pièces jointes en base64)
 
-const MAILEROO_API_URL = 'https://smtp.maileroo.com/send'
+const MAILEROO_API_URL = 'https://smtp.maileroo.com/api/v2/emails'
 
 interface EnvoiEmailParams {
   to: string
@@ -36,49 +37,41 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
   const fromName  = params.fromName  ?? process.env.MAILEROO_FROM_NAME  ?? 'VisitPro'
 
   try {
-    let body: URLSearchParams | FormData
-    let headers: Record<string, string>
+    const payload: Record<string, unknown> = {
+      from:    { email: fromEmail, name: fromName },
+      to:      [{ email: params.to, name: params.toName ?? '' }],
+      subject: params.sujet,
+      html:    params.html,
+    }
+    if (params.texte) payload.plain = params.texte
 
     if (params.pieceJointe) {
-      // Multipart pour inclure la pièce jointe PDF
-      const fd = new FormData()
-      fd.append('from',      fromEmail)
-      fd.append('from_name', fromName)
-      fd.append('to',        params.to)
-      fd.append('subject',   params.sujet)
-      fd.append('html',      params.html)
-      if (params.texte) fd.append('plain', params.texte)
-
-      const blob = new Blob([new Uint8Array(params.pieceJointe.contenu)], {
-        type: params.pieceJointe.type ?? 'application/pdf',
-      })
-      fd.append('attachments[]', blob, params.pieceJointe.nomFichier)
-
-      body    = fd
-      headers = { 'X-API-Key': apiKey }
-    } else {
-      const form = new URLSearchParams()
-      form.append('from',      fromEmail)
-      form.append('from_name', fromName)
-      form.append('to',        params.to)
-      form.append('subject',   params.sujet)
-      form.append('html',      params.html)
-      if (params.texte) form.append('plain', params.texte)
-
-      body    = form
-      headers = { 'X-API-Key': apiKey, 'Content-Type': 'application/x-www-form-urlencoded' }
+      payload.attachments = [{
+        file_name:    params.pieceJointe.nomFichier,
+        content:      params.pieceJointe.contenu.toString('base64'),
+        content_type: params.pieceJointe.type ?? 'application/pdf',
+      }]
     }
 
-    const response = await fetch(MAILEROO_API_URL, { method: 'POST', headers, body })
-    const data = await response.json().catch(() => ({}))
+    const response = await fetch(MAILEROO_API_URL, {
+      method:  'POST',
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    })
+
+    const rawText = await response.text()
+    let data: Record<string, unknown> = {}
+    try { data = JSON.parse(rawText) } catch { /* non-JSON */ }
+
+    console.log('[email] Maileroo status:', response.status, 'body:', rawText.slice(0, 500))
 
     if (!response.ok) {
-      const msg = data.message ?? data.error ?? `Erreur HTTP ${response.status}`
-      console.error('Maileroo error:', response.status, msg)
+      const msg = (data.message ?? data.error ?? `Erreur HTTP ${response.status}`) as string
+      console.error('[email] Maileroo error:', response.status, msg)
       return { success: false, erreur: msg }
     }
 
-    return { success: true, messageId: data.message_id ?? data.id ?? 'ok' }
+    return { success: true, messageId: (data.message_id ?? data.id ?? 'ok') as string }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Erreur réseau'
     console.error('Erreur email:', msg)
