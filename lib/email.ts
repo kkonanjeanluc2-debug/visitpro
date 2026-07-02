@@ -12,6 +12,11 @@ interface EnvoiEmailParams {
   texte?: string
   fromEmail?: string
   fromName?: string
+  pieceJointe?: {
+    contenu: Buffer
+    nomFichier: string
+    type?: string
+  }
 }
 
 export interface EmailResult {
@@ -31,23 +36,40 @@ export async function envoyerEmail(params: EnvoiEmailParams): Promise<EmailResul
   const fromName  = params.fromName  ?? process.env.MAILEROO_FROM_NAME  ?? 'VisitPro'
 
   try {
-    const form = new URLSearchParams()
-    form.append('from',      fromEmail)
-    form.append('from_name', fromName)
-    form.append('to',        params.to)
-    form.append('subject',   params.sujet)
-    form.append('html',      params.html)
-    if (params.texte) form.append('plain', params.texte)
+    let body: URLSearchParams | FormData
+    let headers: Record<string, string>
 
-    const response = await fetch(MAILEROO_API_URL, {
-      method: 'POST',
-      headers: {
-        'X-API-Key':    apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: form.toString(),
-    })
+    if (params.pieceJointe) {
+      // Multipart pour inclure la pièce jointe PDF
+      const fd = new FormData()
+      fd.append('from',      fromEmail)
+      fd.append('from_name', fromName)
+      fd.append('to',        params.to)
+      fd.append('subject',   params.sujet)
+      fd.append('html',      params.html)
+      if (params.texte) fd.append('plain', params.texte)
 
+      const blob = new Blob([params.pieceJointe.contenu], {
+        type: params.pieceJointe.type ?? 'application/pdf',
+      })
+      fd.append('attachments[]', blob, params.pieceJointe.nomFichier)
+
+      body    = fd
+      headers = { 'X-API-Key': apiKey }
+    } else {
+      const form = new URLSearchParams()
+      form.append('from',      fromEmail)
+      form.append('from_name', fromName)
+      form.append('to',        params.to)
+      form.append('subject',   params.sujet)
+      form.append('html',      params.html)
+      if (params.texte) form.append('plain', params.texte)
+
+      body    = form
+      headers = { 'X-API-Key': apiKey, 'Content-Type': 'application/x-www-form-urlencoded' }
+    }
+
+    const response = await fetch(MAILEROO_API_URL, { method: 'POST', headers, body })
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
