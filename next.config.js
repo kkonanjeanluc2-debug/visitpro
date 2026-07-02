@@ -17,6 +17,12 @@ const nextConfig = {
       },
     ],
   },
+  // Inclure les fichiers de polices PDFKit dans les bundles serverless Vercel
+  outputFileTracingIncludes: {
+    '/api/test-pdf': ['./node_modules/pdfkit/js/data/**/*'],
+    '/api/rapport-test': ['./node_modules/pdfkit/js/data/**/*'],
+    '/api/cron/envoyer-rapports': ['./node_modules/pdfkit/js/data/**/*'],
+  },
 }
 
 module.exports = withPWA(nextConfig)
