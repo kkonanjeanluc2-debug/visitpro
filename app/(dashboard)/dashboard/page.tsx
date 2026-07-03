@@ -179,6 +179,23 @@ export default function DashboardPage() {
   const chargerRef = useRef(charger)
   useEffect(() => { chargerRef.current = charger }, [charger])
 
+  // Refs pour lire l'état courant sans re-créer l'intervalle
+  const attenteRef = useRef(visitesEnAttente)
+  useEffect(() => { attenteRef.current = visitesEnAttente }, [visitesEnAttente])
+  const periodeRef = useRef(periode)
+  useEffect(() => { periodeRef.current = periode }, [periode])
+
+  // Rappel sonore toutes les 10 min si des visiteurs attendent encore
+  useEffect(() => {
+    const DIX_MINUTES = 10 * 60 * 1000
+    const id = setInterval(() => {
+      if (attenteRef.current.length > 0 && periodeRef.current === 'today') {
+        jouerSon('rappel_attente')
+      }
+    }, DIX_MINUTES)
+    return () => clearInterval(id)
+  }, [])
+
   // Realtime
   useEffect(() => {
     if (!utilisateur) return

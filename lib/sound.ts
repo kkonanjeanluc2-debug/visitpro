@@ -35,7 +35,7 @@ export function initialiserAudio(): () => void {
   }
 }
 
-export type TypeSon = 'nouvelle_visite' | 'changement_statut' | 'decision' | 'visite_vip'
+export type TypeSon = 'nouvelle_visite' | 'changement_statut' | 'decision' | 'visite_vip' | 'rappel_attente'
 
 export function jouerSon(type: TypeSon = 'changement_statut'): void {
   const ctx = _ctx
@@ -59,6 +59,12 @@ export function jouerSon(type: TypeSon = 'changement_statut'): void {
         // Deux notes descendantes
         note(ctx, 880,    0,   0.22)
         note(ctx, 659.25, 0.2, 0.30)
+      } else if (type === 'rappel_attente') {
+        // Alerte rappel : 3 bips insistants + note grave (visiteur oublié)
+        noteRappel(ctx, 880, 0,    0.18)
+        noteRappel(ctx, 880, 0.28, 0.18)
+        noteRappel(ctx, 880, 0.56, 0.18)
+        noteRappel(ctx, 440, 0.90, 0.55)
       } else {
         // Double bip – changement de statut
         note(ctx, 880, 0,   0.13)
@@ -84,6 +90,22 @@ function note(ctx: AudioContext, freq: number, delai: number, duree: number) {
   const t = ctx.currentTime + delai
   gain.gain.setValueAtTime(0, t)
   gain.gain.linearRampToValueAtTime(0.25, t + 0.025)
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duree)
+  osc.start(t)
+  osc.stop(t + duree + 0.05)
+}
+
+function noteRappel(ctx: AudioContext, freq: number, delai: number, duree: number) {
+  // Onde carrée pour un bip plus perçant / insistant
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.connect(gain)
+  gain.connect(ctx.destination)
+  osc.type = 'square'
+  osc.frequency.value = freq
+  const t = ctx.currentTime + delai
+  gain.gain.setValueAtTime(0, t)
+  gain.gain.linearRampToValueAtTime(0.18, t + 0.01)
   gain.gain.exponentialRampToValueAtTime(0.001, t + duree)
   osc.start(t)
   osc.stop(t + duree + 0.05)
