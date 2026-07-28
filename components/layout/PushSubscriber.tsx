@@ -32,8 +32,10 @@ export default function PushSubscriber({ utilisateurId }: Props) {
         if (existing) {
           const keyBytes = existing.options.applicationServerKey
           if (keyBytes) {
-            const existingKey = btoa(String.fromCharCode(...new Uint8Array(keyBytes)))
-              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+            const arr = new Uint8Array(keyBytes)
+            let binary = ''
+            for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i])
+            const existingKey = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
             const targetKey = VAPID_PUBLIC.replace(/=/g, '')
             if (existingKey === targetKey) {
               await sauvegarder(existing)
