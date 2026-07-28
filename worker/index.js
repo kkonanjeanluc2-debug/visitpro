@@ -1,4 +1,9 @@
 // Service Worker custom — push notifications VisitPro
+
+// Permet la mise à jour immédiate du SW quand un nouveau est en attente
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
+})
 // Compilé par next-pwa et fusionné dans le SW principal
 
 // ── Réception d'une notification push ────────────────────────────────────────

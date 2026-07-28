@@ -48,7 +48,17 @@ export default function PushSubscriber({ utilisateurId }: Props) {
       if (permission === 'denied') { setEtat('denied'); return }
       if (permission !== 'granted') { setEtat('idle'); return }
 
-      const reg = await navigator.serviceWorker.ready
+      // Timeout de 8 s si le SW tarde à s'activer
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('SW timeout')), 8000)
+        ),
+      ]) as ServiceWorkerRegistration
+
+      // Forcer l'activation du SW en attente s'il y en a un
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+
       const existing = await reg.pushManager.getSubscription()
 
       if (existing) {
