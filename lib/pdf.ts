@@ -140,38 +140,43 @@ export function genererRegistrePdf(
   )
 
   // Tableau
-  const rows = visites.map((v, i) => [
-    String(i + 1),
-    formatDateHeure(v.heure_arrivee),
-    nomComplet(v.nom_visiteur, v.prenom_visiteur ?? undefined),
-    v.organisation_visiteur ?? '—',
-    v.destinataire ? nomComplet(v.destinataire.nom, v.destinataire.prenom) : '—',
-    v.motif,
-    v.heure_entree ? formatHeure(v.heure_entree) : '—',
-    v.heure_sortie ? formatHeure(v.heure_sortie) : '—',
-    v.duree_attente !== null && v.duree_attente !== undefined ? formatDuree(v.duree_attente) : '—',
-    v.duree_visite !== null && v.duree_visite !== undefined ? formatDuree(v.duree_visite) : '—',
-    libelleStatut(v.statut),
-  ])
+  const rows = visites.map((v, i) => {
+    const typePiece = v.visiteur?.type_piece_identite
+    const numPiece = v.visiteur?.numero_piece_identite
+    const piece = typePiece && numPiece ? `${typePiece}\n${numPiece}` : typePiece ?? numPiece ?? '—'
+    return [
+      String(i + 1),
+      formatDateHeure(v.heure_arrivee),
+      nomComplet(v.nom_visiteur, v.prenom_visiteur ?? undefined),
+      v.organisation_visiteur ?? '—',
+      piece,
+      v.destinataire ? nomComplet(v.destinataire.nom, v.destinataire.prenom) : '—',
+      v.motif,
+      v.heure_entree ? formatHeure(v.heure_entree) : '—',
+      v.heure_sortie ? formatHeure(v.heure_sortie) : '—',
+      v.duree_attente !== null && v.duree_attente !== undefined ? formatDuree(v.duree_attente) : '—',
+      libelleStatut(v.statut),
+    ]
+  })
 
   autoTable(doc, {
-    head: [['#', 'Date/Heure', 'Visiteur', 'Organisation', 'Destinataire', 'Motif', 'Entrée', 'Sortie', 'Attente', 'Durée', 'Statut']],
+    head: [['#', 'Date/Heure', 'Visiteur', 'Organisation', 'Pièce d\'identité', 'Destinataire', 'Motif', 'Entrée', 'Sortie', 'Attente', 'Statut']],
     body: rows,
     startY: 30,
     styles: { fontSize: 7, cellPadding: 1.5 },
     headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 248, 252] },
     columnStyles: {
-      0: { cellWidth: 8 },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 30 },
-      4: { cellWidth: 28 },
-      5: { cellWidth: 40 },
-      6: { cellWidth: 14 },
-      7: { cellWidth: 14 },
-      8: { cellWidth: 16 },
-      9: { cellWidth: 14 },
+      0: { cellWidth: 7 },
+      1: { cellWidth: 28 },
+      2: { cellWidth: 30 },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 24 },
+      5: { cellWidth: 26 },
+      6: { cellWidth: 38 },
+      7: { cellWidth: 13 },
+      8: { cellWidth: 13 },
+      9: { cellWidth: 13 },
       10: { cellWidth: 20 },
     },
   })
