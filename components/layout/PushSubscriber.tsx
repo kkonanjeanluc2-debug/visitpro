@@ -48,21 +48,33 @@ export default function PushSubscriber({ utilisateurId }: Props) {
       if (permission === 'denied') { setEtat('denied'); return }
       if (permission !== 'granted') { setEtat('idle'); return }
 
-      // Forcer l'activation du SW en attente AVANT d'attendre ready
-      const existingReg = await navigator.serviceWorker.getRegistration('/')
-      if (existingReg?.waiting) {
-        existingReg.waiting.postMessage({ type: 'SKIP_WAITING' })
-        // Laisser le temps au SW de s'activer
-        await new Promise(r => setTimeout(r, 1500))
+      // Récupérer ou enregistrer le SW manuellement (App Router n'a pas de _document.tsx)
+      let reg = await navigator.serviceWorker.getRegistration('/')
+      if (!reg) {
+        console.log('[push] Enregistrement initial de /sw.js')
+        reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
       }
 
-      // Attendre que le SW soit actif (timeout 12 s)
-      const reg = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('SW timeout')), 12000)
-        ),
-      ]) as ServiceWorkerRegistration
+      // Attendre que le SW soit actif en écoutant les changements d'état
+      if (!reg.active) {
+        const sw = reg.installing ?? reg.waiting
+        if (sw) {
+          await new Promise<void>((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error('SW activation timeout')), 20000)
+            sw.addEventListener('statechange', function handler() {
+              if (sw.state === 'activated') {
+                clearTimeout(t)
+                sw.removeEventListener('statechange', handler)
+                resolve()
+              }
+            })
+            // Forcer le skip si en waiting
+            if (sw.state === 'installed') sw.postMessage({ type: 'SKIP_WAITING' })
+          })
+        } else {
+          throw new Error('SW non disponible')
+        }
+      }
 
       const existing = await reg.pushManager.getSubscription()
 

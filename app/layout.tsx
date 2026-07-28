@@ -35,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('visitpro-theme')||'light';var d=window.matchMedia('(prefers-color-scheme:dark)').matches;if(t==='dark'||(t==='system'&&d))document.documentElement.classList.add('dark');}catch(e){}})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(function(r){if(r.waiting)r.waiting.postMessage({type:'SKIP_WAITING'});}).catch(function(){});});}` }} />
       </head>
       <body>{children}</body>
     </html>
