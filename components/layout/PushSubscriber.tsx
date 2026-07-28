@@ -19,23 +19,38 @@ export default function PushSubscriber({ utilisateurId }: Props) {
 
     const abonner = async () => {
       try {
-        const reg = await navigator.serviceWorker.ready
-        const existing = await reg.pushManager.getSubscription()
-
-        // Déjà abonné avec la même clé
-        if (existing) {
-          await sauvegarder(existing)
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') {
+          console.warn('[push] Permission refusée')
           return
         }
 
-        const permission = await Notification.requestPermission()
-        if (permission !== 'granted') return
+        const reg = await navigator.serviceWorker.ready
+        const existing = await reg.pushManager.getSubscription()
+
+        // Vérifier si la clé VAPID correspond — si elle a changé, se désabonner et ré-abonner
+        if (existing) {
+          const keyBytes = existing.options.applicationServerKey
+          if (keyBytes) {
+            const existingKey = btoa(String.fromCharCode(...new Uint8Array(keyBytes)))
+              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+            const targetKey = VAPID_PUBLIC.replace(/=/g, '')
+            if (existingKey === targetKey) {
+              await sauvegarder(existing)
+              return
+            }
+          }
+          // Clé différente → se désabonner et ré-abonner
+          await existing.unsubscribe()
+          console.log('[push] Ré-abonnement (clé VAPID changée)')
+        }
 
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as unknown as BufferSource,
         })
         await sauvegarder(sub)
+        console.log('[push] Abonnement enregistré')
       } catch (e) {
         console.warn('[push] Abonnement échoué :', e)
       }

@@ -26,12 +26,14 @@ export async function POST(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data: subs } = await supabase
+  const { data: subs, error: subsError } = await supabase
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth')
     .eq('utilisateur_id', destinataire_id)
 
-  if (!subs?.length) return NextResponse.json({ ok: true, sent: 0 })
+  console.log('[push/notify] destinataire:', destinataire_id, '| subs:', subs?.length ?? 0, subsError ? `| erreur: ${subsError.message}` : '')
+
+  if (!subs?.length) return NextResponse.json({ ok: true, sent: 0, subs: 0, subsError: subsError?.message ?? null })
 
   const motifTexte = motif?.trim() ? motif.trim() : 'non précisé'
   const payload = JSON.stringify({
@@ -54,8 +56,8 @@ export async function POST(req: Request) {
       )
       sent++
     } catch (err: unknown) {
-      // 410 Gone = subscription expirée ou révoquée
       const status = (err as { statusCode?: number }).statusCode
+      console.warn('[push/notify] échec envoi status:', status, 'endpoint:', sub.endpoint.slice(0, 60))
       if (status === 410 || status === 404) expired.push(sub.endpoint)
     }
   }))
@@ -68,5 +70,6 @@ export async function POST(req: Request) {
     ))
   }
 
+  console.log('[push/notify] envoyé:', sent, '| expirés supprimés:', expired.length)
   return NextResponse.json({ ok: true, sent })
 }
