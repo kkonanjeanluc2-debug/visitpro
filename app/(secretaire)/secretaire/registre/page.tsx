@@ -47,21 +47,24 @@ export default function RegistrePage() {
 
   const exporterExcel = async () => {
     const XLSX = await import('xlsx')
-    const donnees = visitesFiltrees.map((v) => ({
-      'Date/Heure': formatDateHeure(v.heure_arrivee),
-      'Visiteur': nomComplet(v.nom_visiteur, v.prenom_visiteur ?? undefined),
-      'Organisation': v.organisation_visiteur ?? '',
-      'Téléphone': v.telephone_visiteur ?? '',
-      'Destinataire': v.destinataire ? nomComplet(v.destinataire.nom, v.destinataire.prenom) : '',
-      'Motif': v.motif,
-      'Type': v.type_visite,
-      'Urgence': v.niveau_urgence,
-      'Statut': libelleStatut(v.statut),
-      'Heure entrée': v.heure_entree ? formatHeure(v.heure_entree) : '',
-      'Heure sortie': v.heure_sortie ? formatHeure(v.heure_sortie) : '',
-      'Attente (min)': v.duree_attente ?? '',
-      'Durée (min)': v.duree_visite ?? '',
-    }))
+    const donnees = visitesFiltrees.map((v) => {
+      return {
+        'Heure arrivée': formatDateHeure(v.heure_arrivee),
+        'Heure départ': v.heure_sortie ? formatHeure(v.heure_sortie) : '',
+        'Visiteur': nomComplet(v.nom_visiteur, v.prenom_visiteur ?? undefined),
+        'Organisation': v.organisation_visiteur ?? '',
+        'Téléphone': v.telephone_visiteur ?? '',
+        'Type pièce': v.visiteur?.type_piece_identite ?? '',
+        'N° pièce': v.visiteur?.numero_piece_identite ?? '',
+        'Destinataire': v.destinataire ? nomComplet(v.destinataire.nom, v.destinataire.prenom) : '',
+        'Motif': v.motif,
+        'Type visite': v.type_visite,
+        'Urgence': v.niveau_urgence,
+        'Statut': libelleStatut(v.statut),
+        'Attente (min)': v.duree_attente ?? '',
+        'Durée (min)': v.duree_visite ?? '',
+      }
+    })
 
     const ws = XLSX.utils.json_to_sheet(donnees)
     const wb = XLSX.utils.book_new()
@@ -161,12 +164,13 @@ export default function RegistrePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Date/Heure</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">H. arrivée</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 whitespace-nowrap hidden sm:table-cell">H. départ</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Visiteur</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden md:table-cell">Organisation</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden lg:table-cell">Destinataire</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden lg:table-cell whitespace-nowrap">Type pièce</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden lg:table-cell whitespace-nowrap">N° pièce</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden xl:table-cell">Destinataire</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden xl:table-cell">Motif</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700 hidden lg:table-cell">Attente</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Statut</th>
               </tr>
             </thead>
@@ -174,7 +178,7 @@ export default function RegistrePage() {
               {loading ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i}>
-                    {[...Array(7)].map((_, j) => (
+                    {[...Array(8)].map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="animate-pulse bg-gray-100 h-4 rounded" />
                       </td>
@@ -183,7 +187,7 @@ export default function RegistrePage() {
                 ))
               ) : visitesFiltrees.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     Aucune visite trouvée
                   </td>
                 </tr>
@@ -191,7 +195,11 @@ export default function RegistrePage() {
                 visitesFiltrees.map((visite) => (
                   <tr key={visite.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
-                      {formatDateHeure(visite.heure_arrivee)}
+                      <p className="text-xs text-gray-400">{new Date(visite.heure_arrivee).toLocaleDateString('fr-FR')}</p>
+                      <p className="font-medium">{formatHeure(visite.heure_arrivee)}</p>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap hidden sm:table-cell">
+                      {visite.heure_sortie ? formatHeure(visite.heure_sortie) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">
@@ -201,21 +209,19 @@ export default function RegistrePage() {
                         <p className="text-xs text-gray-500">{visite.telephone_visiteur}</p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
-                      {visite.organisation_visiteur ?? '—'}
-                    </td>
                     <td className="px-4 py-3 text-gray-600 hidden lg:table-cell">
+                      {visite.visiteur?.type_piece_identite ?? <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 hidden lg:table-cell font-mono text-xs">
+                      {visite.visiteur?.numero_piece_identite ?? <span className="text-gray-300 font-sans">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 hidden xl:table-cell">
                       {visite.destinataire
                         ? nomComplet(visite.destinataire.nom, visite.destinataire.prenom)
-                        : '—'}
+                        : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 hidden xl:table-cell max-w-[200px] truncate">
+                    <td className="px-4 py-3 text-gray-600 hidden xl:table-cell max-w-[180px] truncate">
                       {visite.motif}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 hidden lg:table-cell whitespace-nowrap">
-                      {visite.duree_attente !== null && visite.duree_attente !== undefined
-                        ? formatDuree(visite.duree_attente)
-                        : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={statutBadge(visite.statut)}>
