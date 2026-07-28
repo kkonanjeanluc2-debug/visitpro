@@ -201,6 +201,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!utilisateur) return
     let premierChargement = true
+
     const channel = supabase
       .channel(`dashboard-${utilisateur.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visites', filter: `entreprise_id=eq.${utilisateur.entreprise_id}` },
@@ -209,7 +210,6 @@ export default function DashboardPage() {
           if (!premierChargement) {
             if (payload.eventType === 'INSERT') {
               jouerSon('nouvelle_visite')
-              // Lecture vocale du visiteur quand l'app est ouverte
               const row = payload.new as Record<string, string>
               const nom   = [row.nom_visiteur, row.prenom_visiteur].filter(Boolean).join(' ')
               const motif = row.motif ?? ''
@@ -219,9 +219,29 @@ export default function DashboardPage() {
             }
           }
         })
-      .subscribe()
+      .subscribe((status) => {
+        // Recharger les données dès que la connexion realtime est (ré)établie
+        if (status === 'SUBSCRIBED') chargerRef.current()
+      })
+
     const t = setTimeout(() => { premierChargement = false }, 2000)
-    return () => { clearTimeout(t); supabase.removeChannel(channel) }
+
+    // ── Recharger quand l'app revient au premier plan (mobile / onglet inactif) ──
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') chargerRef.current()
+    }
+    // ── Recharger quand la connexion réseau revient ───────────────────────────
+    const onOnline = () => chargerRef.current()
+
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', onOnline)
+
+    return () => {
+      clearTimeout(t)
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onOnline)
+    }
   }, [utilisateur?.id])
 
   // Sites (avec cache)
