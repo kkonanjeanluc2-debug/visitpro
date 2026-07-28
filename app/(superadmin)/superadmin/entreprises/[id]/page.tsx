@@ -68,6 +68,14 @@ export default function EntrepriseDetailPage() {
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
 
+  // Changement mot de passe
+  const [mdpUser, setMdpUser] = useState<Utilisateur | null>(null)
+  const [mdpValeur, setMdpValeur] = useState('')
+  const [mdpVisible, setMdpVisible] = useState(false)
+  const [mdpSaving, setMdpSaving] = useState(false)
+  const [mdpError, setMdpError] = useState<string | null>(null)
+  const [mdpSuccess, setMdpSuccess] = useState(false)
+
   // Expiration manuelle essais
   const [expirationLoading, setExpirationLoading] = useState(false)
   const [expirationMsg, setExpirationMsg] = useState<string | null>(null)
@@ -133,6 +141,29 @@ export default function EntrepriseDetailPage() {
     } finally {
       setExpirationLoading(false)
       charger()
+    }
+  }
+
+  const changerMotDePasse = async () => {
+    if (!mdpUser || mdpValeur.length < 6) return
+    setMdpSaving(true)
+    setMdpError(null)
+    setMdpSuccess(false)
+    try {
+      const res = await fetch('/api/superadmin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: mdpUser.id, password: mdpValeur }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setMdpError(json.error ?? 'Erreur'); return }
+      setMdpSuccess(true)
+      setMdpValeur('')
+      setTimeout(() => { setMdpUser(null); setMdpSuccess(false) }, 1500)
+    } catch {
+      setMdpError('Erreur réseau')
+    } finally {
+      setMdpSaving(false)
     }
   }
 
@@ -353,6 +384,15 @@ export default function EntrepriseDetailPage() {
                         {u.role === 'patron' ? 'Administrateur' : u.role === 'secretaire' ? 'Secrétaire' : u.role}
                       </span>
                       <span className={`w-2 h-2 rounded-full ${u.actif ? 'bg-green-400' : 'bg-gray-300'}`} title={u.actif ? 'Actif' : 'Inactif'} />
+                      <button
+                        onClick={() => { setMdpUser(u); setMdpValeur(''); setMdpError(null); setMdpSuccess(false); setMdpVisible(false) }}
+                        title="Changer le mot de passe"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -450,6 +490,87 @@ export default function EntrepriseDetailPage() {
                 {resetting ? 'Suppression...' : 'Supprimer les données'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal changement mot de passe */}
+      {mdpUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !mdpSaving && setMdpUser(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Changer le mot de passe</h3>
+                <p className="text-xs text-gray-400">{mdpUser.prenom} {mdpUser.nom}</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              {mdpSuccess ? (
+                <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm font-medium">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Mot de passe mis à jour avec succès
+                </div>
+              ) : (
+                <>
+                  {mdpError && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{mdpError}</div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                      Nouveau mot de passe
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={mdpVisible ? 'text' : 'password'}
+                        value={mdpValeur}
+                        onChange={e => setMdpValeur(e.target.value)}
+                        placeholder="6 caractères minimum"
+                        autoFocus
+                        className="w-full px-3 py-2.5 pr-10 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setMdpVisible(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {mdpVisible
+                          ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                        }
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Le compte concerné est : {mdpUser.email}</p>
+                  </div>
+                </>
+              )}
+            </div>
+            {!mdpSuccess && (
+              <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+                <button
+                  onClick={() => setMdpUser(null)}
+                  disabled={mdpSaving}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={changerMotDePasse}
+                  disabled={mdpSaving || mdpValeur.length < 6}
+                  className="px-5 py-2 text-sm font-semibold bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-40 flex items-center gap-2"
+                >
+                  {mdpSaving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {mdpSaving ? 'Mise à jour...' : 'Changer le mot de passe'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
