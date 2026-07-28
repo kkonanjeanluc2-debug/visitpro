@@ -12,6 +12,7 @@ import Modal from '@/components/ui/Modal'
 import Select from '@/components/ui/Select'
 import { nomComplet } from '@/lib/utils'
 import { jouerSon, initialiserAudio } from '@/lib/sound'
+import { lireVisite } from '@/lib/speech'
 import type { Visite, DashboardStats, Utilisateur, Site } from '@/types'
 
 type Periode = 'today' | '7j' | '30j' | 'custom'
@@ -206,8 +207,16 @@ export default function DashboardPage() {
         (payload) => {
           chargerRef.current()
           if (!premierChargement) {
-            if (payload.eventType === 'INSERT') jouerSon('nouvelle_visite')
-            else jouerSon('changement_statut')
+            if (payload.eventType === 'INSERT') {
+              jouerSon('nouvelle_visite')
+              // Lecture vocale du visiteur quand l'app est ouverte
+              const row = payload.new as Record<string, string>
+              const nom   = [row.nom_visiteur, row.prenom_visiteur].filter(Boolean).join(' ')
+              const motif = row.motif ?? ''
+              if (nom) setTimeout(() => lireVisite(nom, motif), 600)
+            } else {
+              jouerSon('changement_statut')
+            }
           }
         })
       .subscribe()

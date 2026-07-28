@@ -63,6 +63,21 @@ export default function AccueilSecretairePage() {
 
       setNouvelleVisite({ ...data, ordre_file: ordreFile, temps_attente_estime: tempsEstime })
       setShowSuccessModal(true)
+
+      // Envoyer notification push au destinataire (si app fermée/arrière-plan)
+      if (data.destinataire_id) {
+        const nomVisiteur = [data.nom_visiteur, data.prenom_visiteur].filter(Boolean).join(' ')
+        fetch('/api/push/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            destinataire_id: data.destinataire_id,
+            nomVisiteur,
+            motif:    data.motif ?? '',
+            visiteId: visiteId,
+          }),
+        }).catch(() => {/* silencieux */})
+      }
     }
   }
 

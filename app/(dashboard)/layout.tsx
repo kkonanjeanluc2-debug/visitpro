@@ -4,6 +4,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import BottomNav from '@/components/layout/BottomNav'
 import TopBar from '@/components/layout/TopBar'
 import NotificationHandler from '@/components/layout/NotificationHandler'
+import PushSubscriber from '@/components/layout/PushSubscriber'
 import TrialBanner from '@/components/layout/TrialBanner'
 import EssaiExpire from '@/components/layout/EssaiExpire'
 import RdvProchainsBanner from '@/components/layout/RdvProchainsBanner'
@@ -70,6 +71,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <TopBar utilisateur={utilisateur} />
           <NotificationHandler utilisateurId={utilisateur.id} />
+          <PushSubscriber utilisateurId={utilisateur.id} />
           {!isExpire && (
             <RdvProchainsBanner
               entrepriseId={utilisateur.entreprise_id}
