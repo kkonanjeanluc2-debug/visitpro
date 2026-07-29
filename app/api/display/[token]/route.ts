@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
   }
 
   const today = new Date().toISOString().split('T')[0]
-  const { data: visites } = await admin
+  const { data: visites, error: visitesError } = await admin
     .from('visites')
     .select(`
       id, nom_visiteur, prenom_visiteur, organisation_visiteur,
@@ -29,9 +29,12 @@ export async function GET(_req: Request, { params }: { params: { token: string }
       destinataire:utilisateurs!destinataire_id(prenom, nom)
     `)
     .eq('entreprise_id', entreprise.id)
-    .in('statut', ['en_attente', 'acceptee'])
+    .in('statut', ['en_attente', 'acceptee', 'en_cours'])
     .gte('heure_arrivee', `${today}T00:00:00`)
+    .lte('heure_arrivee', `${today}T23:59:59`)
     .limit(50)
+
+  if (visitesError) console.error('[display] visites error:', visitesError.message)
 
   return NextResponse.json(
     { entreprise, visites: visites ?? [] },
