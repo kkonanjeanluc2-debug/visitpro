@@ -18,9 +18,22 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Bypass total du cache Workbox pour /api/display/ — toujours réseau direct
+// Bypass total du cache Workbox pour les pages /display/ et l'API /api/display/
+// Workbox NetworkOnly échoue avec "no-response" sur les requêtes mode:navigate,
+// ce qui bloque tout rechargement de l'écran. On court-circuite Workbox ici.
 self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('/api/display/')) {
+  const url = event.request.url
+
+  // Pages HTML /display/* (navigations F5, window.location.reload, client.navigate)
+  // → stopImmediatePropagation empêche Workbox de gérer
+  // → ne pas appeler respondWith laisse le navigateur aller au réseau directement
+  if (url.includes('/display/') && !url.includes('/api/display/')) {
+    event.stopImmediatePropagation()
+    return
+  }
+
+  // Requêtes API /api/display/* — toujours réseau, jamais cache
+  if (url.includes('/api/display/')) {
     event.stopImmediatePropagation()
     event.respondWith(
       fetch(event.request.clone()).catch(() => new Response('{}', { status: 503 }))
