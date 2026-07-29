@@ -63,14 +63,13 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     return () => clearTimeout(t)
   }, [])
 
-  // Vérification mise à jour SW toutes les 30s — active le nouveau code dès déploiement
+  // Désenregistrer tous les service workers sur la page display
+  // Le SW cause des données périmées car il intercepte les requêtes API.
+  // La page display n'a pas besoin de fonctionnement hors ligne.
   useEffect(() => {
-    const check = () =>
-      navigator.serviceWorker?.getRegistration()
-        .then(reg => reg?.update())
-        .catch(() => {})
-    const interval = setInterval(check, 30_000)
-    return () => clearInterval(interval)
+    navigator.serviceWorker?.getRegistrations().then((regs) => {
+      regs.forEach((reg) => reg.unregister())
+    }).catch(() => {})
   }, [])
 
   // Chargement des données
