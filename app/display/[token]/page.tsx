@@ -73,9 +73,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       const sorted = [...data.visites].sort((a, b) => {
         const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
         if (pDiff !== 0) return pDiff
-        const aOrdre = a.ordre_file ?? 999999
-        const bOrdre = b.ordre_file ?? 999999
-        if (aOrdre !== bOrdre) return aOrdre - bOrdre
+        // FIFO strict : le plus ancien en tête de liste
         return a.heure_arrivee.localeCompare(b.heure_arrivee)
       })
       setVisites(sorted.slice(0, 12))

@@ -287,6 +287,15 @@ export default function DashboardPage() {
     }
     await supabase.from('visites').update(updates).eq('id', visiteId)
 
+    // Signal instantané vers l'écran d'attente public
+    const displayCh = supabase.channel(`display-${utilisateur!.entreprise_id}`, { config: { broadcast: { ack: false } } })
+    displayCh.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        displayCh.send({ type: 'broadcast', event: 'nouveau_visiteur', payload: {} })
+          .finally(() => supabase.removeChannel(displayCh))
+      }
+    })
+
     const visite = visitesEnAttente.find(v => v.id === visiteId)
     if (visite) {
       const { data: secs } = await supabase.from('utilisateurs').select('id')
