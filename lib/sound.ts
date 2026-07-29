@@ -41,6 +41,10 @@ export function initialiserAudio(): () => void {
   }
 }
 
+export function audioEstActif(): boolean {
+  return !!_ctx && _ctx.state === 'running'
+}
+
 export type TypeSon = 'nouvelle_visite' | 'changement_statut' | 'decision' | 'visite_vip' | 'rappel_attente'
 
 export function jouerSon(type: TypeSon = 'changement_statut'): void {

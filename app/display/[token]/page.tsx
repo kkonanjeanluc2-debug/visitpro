@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface VisiteDisplay {
   id: string
@@ -47,6 +48,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
   const [notFound, setNotFound] = useState(false)
   const [lastFetch, setLastFetch] = useState<string>('')
   const mountedRef = useRef(true)
+  const chargerRef = useRef<() => void>(() => {})
 
   // Horloge
   useEffect(() => {
@@ -55,51 +57,61 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     return () => clearInterval(t)
   }, [])
 
-  // Polling principal
+  // Chargement des données
+  const charger = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/display/${token}?t=${Date.now()}`,
+        { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+      )
+      if (!mountedRef.current) return
+      if (res.status === 404) { setNotFound(true); return }
+      if (!res.ok) return
+      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[] } = await res.json()
+      if (!mountedRef.current) return
+      setEntreprise(data.entreprise)
+      const sorted = [...data.visites].sort((a, b) => {
+        const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
+        if (pDiff !== 0) return pDiff
+        const aOrdre = a.ordre_file ?? 999999
+        const bOrdre = b.ordre_file ?? 999999
+        if (aOrdre !== bOrdre) return aOrdre - bOrdre
+        return a.heure_arrivee.localeCompare(b.heure_arrivee)
+      })
+      setVisites(sorted.slice(0, 12))
+      setLastFetch(new Date().toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    } catch {}
+  }, [token])
+
+  // Garder chargerRef synchronisé pour accès depuis le callback broadcast
+  useEffect(() => { chargerRef.current = charger }, [charger])
+
+  // Polling de secours toutes les 2s
   useEffect(() => {
     mountedRef.current = true
-
-    async function charger() {
-      try {
-        const res = await fetch(
-          `/api/display/${token}?t=${Date.now()}`,
-          { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
-        )
-        if (!mountedRef.current) return
-        if (res.status === 404) { setNotFound(true); return }
-        if (!res.ok) return
-        const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[] } = await res.json()
-        if (!mountedRef.current) return
-        setEntreprise(data.entreprise)
-        const sorted = [...data.visites].sort((a, b) => {
-          const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
-          if (pDiff !== 0) return pDiff
-          const aOrdre = a.ordre_file ?? 999999
-          const bOrdre = b.ordre_file ?? 999999
-          if (aOrdre !== bOrdre) return aOrdre - bOrdre
-          return a.heure_arrivee.localeCompare(b.heure_arrivee)
-        })
-        setVisites(sorted.slice(0, 12))
-        setLastFetch(new Date().toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-      } catch {
-        // réseau indisponible — on conserve le dernier état
-      }
-    }
-
     charger()
     const interval = setInterval(charger, 2_000)
-
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') charger()
-    }
+    const onVisible = () => { if (document.visibilityState === 'visible') charger() }
     document.addEventListener('visibilitychange', onVisible)
-
     return () => {
       mountedRef.current = false
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [token])
+  }, [charger])
+
+  // Broadcast Realtime : rafraîchissement instantané quand un visiteur est enregistré
+  useEffect(() => {
+    if (!entreprise?.id) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`display-${entreprise.id}`)
+      .on('broadcast', { event: 'nouveau_visiteur' }, () => {
+        chargerRef.current()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [entreprise?.id])
 
   if (notFound) {
     return (

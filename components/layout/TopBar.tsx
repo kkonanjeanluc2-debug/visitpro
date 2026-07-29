@@ -32,6 +32,7 @@ import { formatHeure, nomComplet, libelleRole } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import StatutDispo from '@/components/layout/StatutDispo'
 import { useNotifications } from '@/hooks/useNotifications'
+import { jouerSon } from '@/lib/sound'
 
 interface TopBarProps {
   utilisateur: Utilisateur
@@ -43,6 +44,7 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
   const { notifications, nonLues, messagesNonLus } = useNotifications(utilisateur.id)
   const pathname = usePathname()
   const titre = titreProp ?? ROUTE_TITRES.find((r) => pathname.startsWith(r.prefix))?.titre
+  const [sonActif, setSonActif] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [profilModalOpen, setProfilModalOpen] = useState(false)
@@ -246,6 +248,22 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
             <StatutDispo utilisateur={utilisateur} />
             <div className="w-px h-6 bg-white/20 mx-2" />
           </>
+        )}
+
+        {/* Activation son — visible tant que l'utilisateur n'a pas cliqué */}
+        {!sonActif && (
+          <button
+            onClick={() => { jouerSon('changement_statut'); setSonActif(true) }}
+            className="relative p-2 rounded-lg text-yellow-300/90 hover:bg-white/10 hover:text-yellow-200 transition-all"
+            title="Cliquez pour activer les alertes sonores"
+            aria-label="Activer le son"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+            </svg>
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+          </button>
         )}
 
         {/* Messagerie */}
