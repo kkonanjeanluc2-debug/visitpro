@@ -319,6 +319,7 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
           niveau_urgence: urgence,
           statut: 'en_attente',
           site_id: siteId ?? null,
+          heure_arrivee: new Date().toISOString(),
         })
         .select()
         .single()

@@ -98,19 +98,24 @@ export default function AccueilSecretairePage() {
   }
 
   const handleTerminer = async (visiteId: string) => {
-    const now = new Date()
     const visite = visites.find((v) => v.id === visiteId)
     const dureeVisite = visite?.heure_entree
-      ? Math.round((now.getTime() - new Date(visite.heure_entree).getTime()) / 60000)
+      ? Math.round((Date.now() - new Date(visite.heure_entree).getTime()) / 60000)
       : null
-    await supabase
-      .from('visites')
-      .update({
-        statut: 'terminee',
-        heure_sortie: now.toISOString(),
-        ...(dureeVisite != null ? { duree_visite: dureeVisite } : {}),
+    const res = await fetch('/api/visites/terminer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visite_id: visiteId, duree_visite: dureeVisite }),
+    })
+    if (res.ok && utilisateur?.entreprise_id) {
+      const ch = supabase.channel(`display-${utilisateur.entreprise_id}`, { config: { broadcast: { ack: false } } })
+      ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          ch.send({ type: 'broadcast', event: 'nouveau_visiteur', payload: {} })
+            .finally(() => supabase.removeChannel(ch))
+        }
       })
-      .eq('id', visiteId)
+    }
   }
 
   const [rechargeFeedback, setRechargeFeedback] = useState<'idle' | 'sent'>('idle')

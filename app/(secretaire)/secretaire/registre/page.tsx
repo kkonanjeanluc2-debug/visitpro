@@ -41,14 +41,20 @@ export default function RegistrePage() {
     if (!confirm(`Terminer la visite de ${nomComplet(visite.nom_visiteur, visite.prenom_visiteur ?? undefined)} ?`)) return
     setTerminantId(visite.id)
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('visites')
-        .update({ statut: 'terminee', heure_sortie: new Date().toISOString() })
-        .eq('id', visite.id)
-      if (error) { console.error('terminerVisite error:', error); return }
+      const res = await fetch('/api/visites/terminer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visite_id: visite.id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error('terminerVisite error:', body)
+        alert('Impossible de terminer cette visite : ' + (body.erreur ?? res.statusText))
+        return
+      }
 
       if (utilisateur?.entreprise_id) {
+        const supabase = createClient()
         const ch = supabase.channel(`display-${utilisateur.entreprise_id}`, { config: { broadcast: { ack: false } } })
         ch.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
