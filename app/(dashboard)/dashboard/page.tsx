@@ -323,6 +323,15 @@ export default function DashboardPage() {
       ...(sujetTraite ? { sujet_traite: sujetTraite } : {}),
     }).eq('id', visiteId)
 
+    // Signal instantané vers l'écran d'attente public
+    const displayCh2 = supabase.channel(`display-${utilisateur!.entreprise_id}`, { config: { broadcast: { ack: false } } })
+    displayCh2.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        displayCh2.send({ type: 'broadcast', event: 'nouveau_visiteur', payload: {} })
+          .finally(() => supabase.removeChannel(displayCh2))
+      }
+    })
+
     const sujet = sujetTraite ?? visite?.sujet_traite?.trim()
     if (sujet && visite?.visiteur_id) {
       const { data: v } = await supabase

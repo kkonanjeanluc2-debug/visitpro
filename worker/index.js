@@ -1,18 +1,32 @@
-// Service Worker custom — push notifications VisitPro
+// Service Worker custom — VisitPro
 
-// Permet la mise à jour immédiate du SW quand un nouveau est en attente
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
 
-// Bypass total du cache pour les routes display — toujours réseau
+// Quand ce nouveau SW s'active, recharger toutes les pages /display/ ouvertes
+// Cela garantit que l'écran d'affichage tourne toujours sur le dernier code déployé.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes('/display/')) {
+          client.navigate(client.url)
+        }
+      }
+    })
+  )
+})
+
+// Bypass total du cache Workbox pour /api/display/ — toujours réseau direct
 self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/display/')) {
     event.stopImmediatePropagation()
-    event.respondWith(fetch(event.request.clone()))
+    event.respondWith(
+      fetch(event.request.clone()).catch(() => new Response('{}', { status: 503 }))
+    )
   }
 })
-// Compilé par next-pwa et fusionné dans le SW principal
 
 // ── Réception d'une notification push ────────────────────────────────────────
 
