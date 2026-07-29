@@ -29,7 +29,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
       destinataire:utilisateurs!destinataire_id(prenom, nom)
     `)
     .eq('entreprise_id', entreprise.id)
-    .in('statut', ['en_attente', 'acceptee', 'en_cours'])
+    .in('statut', ['en_attente', 'acceptee'])
     .gte('heure_arrivee', `${today}T00:00:00`)
     .lte('heure_arrivee', `${today}T23:59:59`)
     .limit(50)

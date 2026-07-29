@@ -54,9 +54,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       setEntreprise(data.entreprise)
 
       // Filtre : uniquement les visiteurs qui attendent (pas encore reçus)
-      const enAttente = data.visites.filter(v => v.statut === 'en_attente' || v.statut === 'acceptee')
-
-      const sorted = [...enAttente].sort((a, b) => {
+      const sorted = [...data.visites].sort((a, b) => {
         const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
         if (pDiff !== 0) return pDiff
         const aOrdre = a.ordre_file ?? 999999
@@ -72,8 +70,15 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
 
   useEffect(() => {
     charger()
-    intervalRef.current = setInterval(charger, 10_000)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+    intervalRef.current = setInterval(charger, 2_000)
+
+    const onVisible = () => { if (document.visibilityState === 'visible') charger() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [charger])
 
   useEffect(() => {
