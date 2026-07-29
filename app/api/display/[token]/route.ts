@@ -36,7 +36,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     .order('heure_arrivee', { ascending: true })
     .limit(50)
 
-  console.log(`[display] ${entreprise.nom} | today=${today} | visites=${visites?.length ?? 0} | err=${visitesError?.message ?? 'none'}`)
+  console.log(`[display] ${entreprise.nom} | visites=${visites?.length ?? 0} | err=${visitesError?.message ?? 'none'}`)
   visites?.forEach(v => console.log(`  - ${v.nom_visiteur} | statut=${v.statut} | arrivee=${v.heure_arrivee}`))
 
   return NextResponse.json(
