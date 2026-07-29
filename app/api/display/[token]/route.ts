@@ -21,9 +21,9 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
   }
 
-  // On ne filtre PAS par date — le statut (en_attente/acceptee) suffit.
-  // Un filtre `gte(heure_arrivee, today)` sans fuseau horaire explicite peut
-  // exclure des visites selon la timezone de la session Supabase.
+  // Filtre sur aujourd'hui en UTC explicite (suffixe Z) pour éviter
+  // toute ambiguïté de timezone côté session Supabase/PostgreSQL.
+  const todayUTC = new Date().toISOString().split('T')[0]  // "2026-07-30"
   const { data: visites, error: visitesError } = await admin
     .from('visites')
     .select(`
@@ -33,6 +33,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     `)
     .eq('entreprise_id', entreprise.id)
     .in('statut', ['en_attente', 'acceptee'])
+    .gte('heure_arrivee', `${todayUTC}T00:00:00Z`)
     .order('heure_arrivee', { ascending: true })
     .limit(50)
 
