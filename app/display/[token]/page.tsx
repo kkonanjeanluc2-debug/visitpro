@@ -164,61 +164,81 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           </div>
         ) : (
           <>
-            {/* ── PREMIER VISITEUR (mise en avant) ── */}
+            {/* ── PREMIER VISITEUR (bienvenue) ── */}
             {premier && (
               <div
                 className="rounded-2xl px-8 py-6 flex-shrink-0"
                 style={{ backgroundColor: `${overlay}0.12)`, border: `1px solid ${overlay}0.18)` }}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-5">
+                <div className="flex items-center justify-between gap-6">
+                  <div className="flex items-center gap-5 min-w-0">
                     {/* Numéro */}
                     <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0 mt-1"
+                      className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0"
                       style={{ backgroundColor: `${overlay}0.2)`, color: texte }}
                     >
                       1
                     </div>
 
-                    <div>
-                      <div className="flex items-center gap-3 flex-wrap mb-1">
-                        {premier.niveau_urgence === 'vip' && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-400 text-yellow-900">VIP</span>
-                        )}
-                        {premier.niveau_urgence === 'urgent' && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">URGENT</span>
-                        )}
-                        <p
-                          className="font-bold leading-tight"
-                          style={{ fontSize: 'clamp(22px, 3vw, 42px)', color: texte }}
-                        >
-                          {nomComplet(premier.nom_visiteur, premier.prenom_visiteur)}
-                        </p>
-                      </div>
+                    <div className="min-w-0">
+                      {/* Badges urgence */}
+                      {(premier.niveau_urgence === 'vip' || premier.niveau_urgence === 'urgent') && (
+                        <div className="mb-2">
+                          {premier.niveau_urgence === 'vip' && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-400 text-yellow-900">VIP</span>
+                          )}
+                          {premier.niveau_urgence === 'urgent' && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">URGENT</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Message bienvenue */}
+                      <p className="text-base font-light tracking-widest uppercase opacity-60 mb-1" style={{ color: texte }}>
+                        Bienvenue
+                      </p>
+
+                      {/* Nom visiteur */}
+                      <p
+                        className="font-bold leading-tight mb-2"
+                        style={{ fontSize: 'clamp(22px, 3vw, 44px)', color: texte }}
+                      >
+                        M./Mme {nomComplet(premier.nom_visiteur, premier.prenom_visiteur)}
+                      </p>
+
+                      {/* Organisation */}
                       {premier.organisation_visiteur && (
-                        <p className="text-lg font-light opacity-70 mb-1" style={{ color: texte }}>
+                        <p className="text-base font-light opacity-60 mb-2" style={{ color: texte }}>
                           {premier.organisation_visiteur}
                         </p>
                       )}
-                      {premier.destinataire?.nom && (
-                        <p className="text-base opacity-60" style={{ color: texte }}>
-                          Pour{' '}
-                          <span className="font-medium opacity-90">
+
+                      {/* Message destinataire */}
+                      {premier.destinataire?.nom ? (
+                        <p className="text-base opacity-80" style={{ color: texte }}>
+                          M./Mme{' '}
+                          <span className="font-semibold">
                             {nomComplet(premier.destinataire.nom, premier.destinataire.prenom)}
-                          </span>
+                          </span>{' '}
+                          va vous recevoir dans quelques instants
+                        </p>
+                      ) : (
+                        <p className="text-base opacity-60" style={{ color: texte }}>
+                          Vous allez être pris en charge dans quelques instants
                         </p>
                       )}
                     </div>
                   </div>
 
+                  {/* Heure + statut */}
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm opacity-50 mb-1" style={{ color: texte }}>Arrivé à</p>
-                    <p className="text-2xl font-light tabular-nums" style={{ color: texte }}>
+                    <p className="text-sm opacity-40 mb-1" style={{ color: texte }}>Arrivé à</p>
+                    <p className="text-3xl font-light tabular-nums" style={{ color: texte }}>
                       {formatHeure(premier.heure_arrivee)}
                     </p>
                     {premier.statut === 'acceptee' && (
                       <span className="mt-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500 text-white">
-                        Accepté
+                        Accepté ✓
                       </span>
                     )}
                   </div>
@@ -229,6 +249,9 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
             {/* ── LISTE DES SUIVANTS ── */}
             {suite.length > 0 && (
               <div className="flex-1 overflow-y-auto space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-widest opacity-40 px-1 pb-1" style={{ color: texte }}>
+                  File d&apos;attente — {suite.length + 1} personne{suite.length + 1 > 1 ? 's' : ''}
+                </p>
                 {suite.map((visite, idx) => (
                   <div
                     key={visite.id}
@@ -294,11 +317,6 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="opacity-30 text-xs" style={{ color: texte }}>En direct</span>
-          {visites.length > 0 && (
-            <span className="opacity-40 text-xs ml-2" style={{ color: texte }}>
-              · {visites.length} en attente
-            </span>
-          )}
         </div>
         <p className="opacity-20" style={{ fontSize: 11, color: texte }}>
           Powered by VisitPro
