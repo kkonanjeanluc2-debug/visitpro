@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisites } from '@/hooks/useVisites'
+import { createClient } from '@/lib/supabase/client'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
@@ -18,6 +19,7 @@ export default function RegistrePage() {
   const [dateFin, setDateFin] = useState(today)
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const [recherche, setRecherche] = useState('')
+  const [terminantId, setTerminantId] = useState<string | null>(null)
 
   const { visites, loading } = useVisites(utilisateur?.entreprise_id ?? null, {
     dateDebut,
@@ -33,6 +35,32 @@ export default function RegistrePage() {
         (v.organisation_visiteur ?? '').toLowerCase().includes(recherche.toLowerCase())
       )
     : visites
+
+  const terminerVisite = async (visite: Visite) => {
+    if (terminantId) return
+    if (!confirm(`Terminer la visite de ${nomComplet(visite.nom_visiteur, visite.prenom_visiteur ?? undefined)} ?`)) return
+    setTerminantId(visite.id)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('visites')
+        .update({ statut: 'terminee', heure_sortie: new Date().toISOString() })
+        .eq('id', visite.id)
+      if (error) { console.error('terminerVisite error:', error); return }
+
+      if (utilisateur?.entreprise_id) {
+        const ch = supabase.channel(`display-${utilisateur.entreprise_id}`, { config: { broadcast: { ack: false } } })
+        ch.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            ch.send({ type: 'broadcast', event: 'nouveau_visiteur', payload: {} })
+              .finally(() => supabase.removeChannel(ch))
+          }
+        })
+      }
+    } finally {
+      setTerminantId(null)
+    }
+  }
 
   const exporterPdf = async () => {
     if (!utilisateur?.entreprise) return
@@ -224,9 +252,20 @@ export default function RegistrePage() {
                       {visite.motif}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={statutBadge(visite.statut)}>
-                        {libelleStatut(visite.statut)}
-                      </Badge>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant={statutBadge(visite.statut)}>
+                          {libelleStatut(visite.statut)}
+                        </Badge>
+                        {visite.statut === 'en_attente' && (
+                          <button
+                            onClick={() => terminerVisite(visite)}
+                            disabled={terminantId === visite.id}
+                            className="text-xs px-2 py-0.5 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors whitespace-nowrap"
+                          >
+                            {terminantId === visite.id ? '…' : 'Terminer'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

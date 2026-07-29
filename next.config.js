@@ -61,6 +61,20 @@ const nextConfig = {
       },
     ],
   },
+  async headers() {
+    return [
+      {
+        // Rechargement automatique de l'écran d'affichage toutes les 5 min.
+        // Fonctionne même avec l'ancien service worker ou sans JavaScript.
+        source: '/display/:token*',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, must-revalidate' },
+          { key: 'Pragma',        value: 'no-cache' },
+          { key: 'Refresh',       value: '300' },
+        ],
+      },
+    ]
+  },
 }
 
 module.exports = withPWA(nextConfig)
