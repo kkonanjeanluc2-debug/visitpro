@@ -164,147 +164,117 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           </div>
         ) : (
           <>
-            {/* ── PREMIER VISITEUR (bienvenue) ── */}
-            {premier && (
-              <div
-                className="rounded-2xl px-8 py-6 flex-shrink-0"
-                style={{ backgroundColor: `${overlay}0.12)`, border: `1px solid ${overlay}0.18)` }}
-              >
-                <div className="flex items-center justify-between gap-6">
-                  <div className="flex items-center gap-5 min-w-0">
+            {/* ── EN-TÊTE LISTE ── */}
+            <p className="text-xs font-semibold uppercase tracking-widest opacity-40 px-1 flex-shrink-0" style={{ color: texte }}>
+              File d&apos;attente — {visites.length} personne{visites.length > 1 ? 's' : ''}
+            </p>
+
+            {/* ── LISTE COMPLÈTE (premier mis en évidence) ── */}
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {visites.map((visite, idx) => {
+                const estPremier = idx === 0
+                return (
+                  <div
+                    key={visite.id}
+                    className="rounded-2xl flex items-center gap-5"
+                    style={{
+                      padding: estPremier ? '20px 28px' : '12px 20px',
+                      backgroundColor: estPremier ? `${overlay}0.14)` : `${overlay}0.07)`,
+                      border: `1px solid ${overlay}${estPremier ? '0.20' : '0.10'})`,
+                    }}
+                  >
                     {/* Numéro */}
                     <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0"
-                      style={{ backgroundColor: `${overlay}0.2)`, color: texte }}
+                      className="rounded-full flex items-center justify-center font-bold flex-shrink-0"
+                      style={{
+                        width: estPremier ? 48 : 36,
+                        height: estPremier ? 48 : 36,
+                        fontSize: estPremier ? 20 : 15,
+                        backgroundColor: `${overlay}0.18)`,
+                        color: texte,
+                      }}
                     >
-                      1
+                      {idx + 1}
                     </div>
 
-                    <div className="min-w-0">
+                    {/* Contenu */}
+                    <div className="flex-1 min-w-0">
                       {/* Badges urgence */}
-                      {(premier.niveau_urgence === 'vip' || premier.niveau_urgence === 'urgent') && (
-                        <div className="mb-2">
-                          {premier.niveau_urgence === 'vip' && (
+                      {(visite.niveau_urgence === 'vip' || visite.niveau_urgence === 'urgent') && (
+                        <div className="mb-1">
+                          {visite.niveau_urgence === 'vip' && (
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-400 text-yellow-900">VIP</span>
                           )}
-                          {premier.niveau_urgence === 'urgent' && (
+                          {visite.niveau_urgence === 'urgent' && (
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">URGENT</span>
                           )}
                         </div>
                       )}
 
-                      {/* Message bienvenue */}
-                      <p className="text-base font-light tracking-widest uppercase opacity-60 mb-1" style={{ color: texte }}>
-                        Bienvenue
-                      </p>
+                      {estPremier && (
+                        <p className="text-sm font-light tracking-widest uppercase opacity-50 mb-0.5" style={{ color: texte }}>
+                          Bienvenue
+                        </p>
+                      )}
 
-                      {/* Nom visiteur */}
+                      {/* Nom */}
                       <p
-                        className="font-bold leading-tight mb-2"
-                        style={{ fontSize: 'clamp(22px, 3vw, 44px)', color: texte }}
+                        className="font-bold leading-tight truncate"
+                        style={{ fontSize: estPremier ? 'clamp(20px, 2.8vw, 40px)' : 'clamp(14px, 1.6vw, 22px)', color: texte }}
                       >
-                        M./Mme {nomComplet(premier.nom_visiteur, premier.prenom_visiteur)}
+                        M./Mme {nomComplet(visite.nom_visiteur, visite.prenom_visiteur)}
                       </p>
 
                       {/* Organisation */}
-                      {premier.organisation_visiteur && (
-                        <p className="text-base font-light opacity-60 mb-2" style={{ color: texte }}>
-                          {premier.organisation_visiteur}
+                      {visite.organisation_visiteur && (
+                        <p
+                          className="font-light truncate"
+                          style={{ fontSize: estPremier ? 15 : 13, color: texte, opacity: 0.55 }}
+                        >
+                          {visite.organisation_visiteur}
                         </p>
                       )}
 
                       {/* Message destinataire */}
-                      {premier.destinataire?.nom ? (
-                        <p className="text-base opacity-80" style={{ color: texte }}>
-                          M./Mme{' '}
-                          <span className="font-semibold">
-                            {nomComplet(premier.destinataire.nom, premier.destinataire.prenom)}
-                          </span>{' '}
-                          va vous recevoir dans quelques instants
-                        </p>
-                      ) : (
-                        <p className="text-base opacity-60" style={{ color: texte }}>
-                          Vous allez être pris en charge dans quelques instants
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Heure + statut */}
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm opacity-40 mb-1" style={{ color: texte }}>Arrivé à</p>
-                    <p className="text-3xl font-light tabular-nums" style={{ color: texte }}>
-                      {formatHeure(premier.heure_arrivee)}
-                    </p>
-                    {premier.statut === 'acceptee' && (
-                      <span className="mt-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500 text-white">
-                        Accepté ✓
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── LISTE DES SUIVANTS ── */}
-            {suite.length > 0 && (
-              <div className="flex-1 overflow-y-auto space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-widest opacity-40 px-1 pb-1" style={{ color: texte }}>
-                  File d&apos;attente — {suite.length + 1} personne{suite.length + 1 > 1 ? 's' : ''}
-                </p>
-                {suite.map((visite, idx) => (
-                  <div
-                    key={visite.id}
-                    className="rounded-xl px-6 py-3 flex items-center gap-4"
-                    style={{ backgroundColor: `${overlay}0.07)`, border: `1px solid ${overlay}0.1)` }}
-                  >
-                    {/* Numéro */}
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-base flex-shrink-0"
-                      style={{ backgroundColor: `${overlay}0.12)`, color: texte, opacity: 0.8 }}
-                    >
-                      {idx + 2}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {visite.niveau_urgence === 'vip' && (
-                          <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-yellow-400 text-yellow-900">VIP</span>
-                        )}
-                        {visite.niveau_urgence === 'urgent' && (
-                          <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">URG</span>
-                        )}
-                        <p
-                          className="font-semibold truncate"
-                          style={{ fontSize: 'clamp(14px, 1.6vw, 20px)', color: texte }}
-                        >
-                          {nomComplet(visite.nom_visiteur, visite.prenom_visiteur)}
-                        </p>
-                        {visite.organisation_visiteur && (
-                          <p className="text-sm opacity-50 truncate hidden sm:block" style={{ color: texte }}>
-                            — {visite.organisation_visiteur}
-                          </p>
-                        )}
-                      </div>
                       {visite.destinataire?.nom && (
-                        <p className="text-sm opacity-50 truncate" style={{ color: texte }}>
-                          Pour {nomComplet(visite.destinataire.nom, visite.destinataire.prenom)}
+                        <p
+                          className="truncate"
+                          style={{ fontSize: estPremier ? 15 : 13, color: texte, opacity: estPremier ? 0.85 : 0.50, marginTop: 2 }}
+                        >
+                          {estPremier ? (
+                            <>
+                              M./Mme{' '}
+                              <span className="font-semibold">
+                                {nomComplet(visite.destinataire.nom, visite.destinataire.prenom)}
+                              </span>{' '}
+                              va vous recevoir dans quelques instants
+                            </>
+                          ) : (
+                            <>Pour {nomComplet(visite.destinataire.nom, visite.destinataire.prenom)}</>
+                          )}
                         </p>
                       )}
                     </div>
 
+                    {/* Heure + statut */}
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm opacity-40 tabular-nums" style={{ color: texte }}>
+                      <p className="text-xs opacity-40 mb-0.5" style={{ color: texte }}>Arrivé à</p>
+                      <p
+                        className="font-light tabular-nums"
+                        style={{ fontSize: estPremier ? 28 : 16, color: texte }}
+                      >
                         {formatHeure(visite.heure_arrivee)}
                       </p>
                       {visite.statut === 'acceptee' && (
-                        <span className="text-xs font-semibold text-green-400">Accepté</span>
+                        <span className="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500 text-white">
+                          Accepté ✓
+                        </span>
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                )
+              })}
+            </div>
           </>
         )}
       </div>
