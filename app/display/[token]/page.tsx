@@ -34,6 +34,10 @@ function nomComplet(nom: string, prenom?: string) {
   return prenom ? `${prenom} ${nom}` : nom
 }
 
+function formatHeure(iso: string) {
+  return new Date(iso).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' })
+}
+
 export default function DisplayPage({ params }: { params: { token: string } }) {
   const [entreprise, setEntreprise] = useState<EntrepriseDisplay | null>(null)
   const [visites, setVisites] = useState<VisiteDisplay[]>([])
@@ -49,7 +53,10 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[] } = await res.json()
       setEntreprise(data.entreprise)
 
-      const sorted = [...data.visites].sort((a, b) => {
+      // Filtre : uniquement les visiteurs qui attendent (pas encore reçus)
+      const enAttente = data.visites.filter(v => v.statut === 'en_attente' || v.statut === 'acceptee')
+
+      const sorted = [...enAttente].sort((a, b) => {
         const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
         if (pDiff !== 0) return pDiff
         const aOrdre = a.ordre_file ?? 999999
@@ -57,9 +64,9 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
         if (aOrdre !== bOrdre) return aOrdre - bOrdre
         return a.heure_arrivee.localeCompare(b.heure_arrivee)
       })
-      setVisites(sorted.slice(0, 10))
+      setVisites(sorted.slice(0, 12))
     } catch {
-      // réseau indisponible — on conserve le dernier état affiché
+      // réseau indisponible — on conserve le dernier état
     }
   }, [params.token])
 
@@ -69,7 +76,6 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [charger])
 
-  // Horloge — initialisée côté client uniquement
   useEffect(() => {
     setHeureActuelle(new Date())
     const t = setInterval(() => setHeureActuelle(new Date()), 1000)
@@ -98,131 +104,201 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
 
   const fond = entreprise.display_couleur_fond
   const texte = entreprise.display_couleur_texte
-  const visiteurActuel = visites[0] ?? null
+  const isDark = fond !== '#F9FAFB' && fond !== '#FFFFFF'
+  const overlay = isDark ? 'rgba(255,255,255,' : 'rgba(0,0,0,'
+  const premier = visites[0] ?? null
+  const suite = visites.slice(1)
 
   return (
     <div
-      className="min-h-screen flex flex-col select-none overflow-hidden"
+      className="min-h-screen flex flex-col select-none"
       style={{ backgroundColor: fond, color: texte }}
     >
-      {/* ── HEADER ── */}
+      {/* ── HEADER : logo + nom + horloge ── */}
       <header
-        className="flex flex-col items-center justify-center"
-        style={{ minHeight: '15vh', borderBottom: `1px solid rgba(255,255,255,0.12)` }}
+        className="flex items-center justify-between px-8 py-4 flex-shrink-0"
+        style={{ borderBottom: `1px solid ${overlay}0.12)` }}
       >
-        {entreprise.logo_url ? (
-          <img
-            src={entreprise.logo_url}
-            alt={entreprise.nom}
-            className="h-16 w-auto object-contain mb-2"
-          />
-        ) : (
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-2xl mb-2"
-            style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: texte }}
+        <div className="flex items-center gap-4">
+          {entreprise.logo_url ? (
+            <img src={entreprise.logo_url} alt={entreprise.nom} className="h-12 w-auto object-contain" />
+          ) : (
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl"
+              style={{ backgroundColor: `${overlay}0.15)`, color: texte }}
+            >
+              {entreprise.nom.charAt(0)}
+            </div>
+          )}
+          <h1 className="text-xl font-semibold tracking-wide" style={{ color: texte }}>
+            {entreprise.nom}
+          </h1>
+        </div>
+
+        <div className="text-right">
+          <p
+            className="font-light tabular-nums leading-none"
+            style={{ fontSize: 'clamp(32px, 4vw, 56px)', color: texte }}
           >
-            {entreprise.nom.charAt(0)}
-          </div>
-        )}
-        <h1 className="text-xl font-semibold tracking-wide" style={{ color: texte }}>
-          {entreprise.nom}
-        </h1>
+            {heureActuelle?.toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' }) ?? '--:--'}
+          </p>
+          <p className="text-sm font-light opacity-60 mt-1 capitalize" style={{ color: texte }}>
+            {heureActuelle?.toLocaleDateString('fr-CI', {
+              weekday: 'long', day: 'numeric', month: 'long',
+            }) ?? ''}
+          </p>
+        </div>
       </header>
 
-      {/* ── HEURE + DATE ── */}
-      <div
-        className="flex flex-col items-center justify-center py-8"
-        style={{ borderBottom: `1px solid rgba(255,255,255,0.12)` }}
-      >
-        <p
-          className="font-light tabular-nums leading-none"
-          style={{ fontSize: 'clamp(72px, 12vw, 140px)', color: texte }}
-        >
-          {heureActuelle?.toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' }) ?? '--:--'}
-        </p>
-        <p className="text-xl font-light opacity-70 mt-2 capitalize" style={{ color: texte }}>
-          {heureActuelle?.toLocaleDateString('fr-CI', {
-            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-          }) ?? ''}
-        </p>
-      </div>
-
-      {/* ── ZONE VISITEUR ── */}
-      <div
-        className="flex-1 flex flex-col items-center justify-center text-center px-8"
-        style={{ minHeight: '50vh' }}
-      >
-        {visiteurActuel ? (
+      {/* ── CORPS ── */}
+      <div className="flex-1 flex flex-col overflow-hidden px-8 py-6 gap-4">
+        {visites.length === 0 ? (
+          /* Aucun visiteur */
+          <div className="flex-1 flex items-center justify-center">
+            <p
+              className="font-light opacity-70 text-center leading-relaxed"
+              style={{ fontSize: 'clamp(20px, 2.5vw, 36px)', color: texte, maxWidth: '60%' }}
+            >
+              {entreprise.display_message}
+            </p>
+          </div>
+        ) : (
           <>
-            <p
-              className="text-lg font-light tracking-widest uppercase mb-6 opacity-70"
-              style={{ color: texte }}
-            >
-              Bienvenue
-            </p>
-
-            <p
-              className="font-bold leading-tight mb-4"
-              style={{
-                fontSize: 'clamp(36px, 6vw, 72px)',
-                color: texte,
-                textShadow: '0 2px 12px rgba(0,0,0,0.2)',
-              }}
-            >
-              {nomComplet(visiteurActuel.nom_visiteur, visiteurActuel.prenom_visiteur)}
-            </p>
-
-            {visiteurActuel.organisation_visiteur && (
-              <p className="text-2xl font-light opacity-80 mb-8" style={{ color: texte }}>
-                {visiteurActuel.organisation_visiteur}
-              </p>
-            )}
-
-            {visiteurActuel.temps_attente_estime != null && visiteurActuel.temps_attente_estime > 0 && (
-              <p className="text-lg font-light opacity-60 mb-4" style={{ color: texte }}>
-                Environ {visiteurActuel.temps_attente_estime} minute{visiteurActuel.temps_attente_estime > 1 ? 's' : ''} d&apos;attente
-              </p>
-            )}
-
-            {visiteurActuel.destinataire?.nom && (
+            {/* ── PREMIER VISITEUR (mise en avant) ── */}
+            {premier && (
               <div
-                className="mt-2 px-8 py-4 rounded-2xl inline-block"
-                style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
+                className="rounded-2xl px-8 py-6 flex-shrink-0"
+                style={{ backgroundColor: `${overlay}0.12)`, border: `1px solid ${overlay}0.18)` }}
               >
-                <p className="text-xl font-light" style={{ color: texte }}>
-                  M./Mme{' '}
-                  <strong>
-                    {nomComplet(visiteurActuel.destinataire.nom, visiteurActuel.destinataire.prenom)}
-                  </strong>{' '}
-                  vous reçoit dans quelques instants
-                </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-5">
+                    {/* Numéro */}
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0 mt-1"
+                      style={{ backgroundColor: `${overlay}0.2)`, color: texte }}
+                    >
+                      1
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-3 flex-wrap mb-1">
+                        {premier.niveau_urgence === 'vip' && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-400 text-yellow-900">VIP</span>
+                        )}
+                        {premier.niveau_urgence === 'urgent' && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">URGENT</span>
+                        )}
+                        <p
+                          className="font-bold leading-tight"
+                          style={{ fontSize: 'clamp(22px, 3vw, 42px)', color: texte }}
+                        >
+                          {nomComplet(premier.nom_visiteur, premier.prenom_visiteur)}
+                        </p>
+                      </div>
+                      {premier.organisation_visiteur && (
+                        <p className="text-lg font-light opacity-70 mb-1" style={{ color: texte }}>
+                          {premier.organisation_visiteur}
+                        </p>
+                      )}
+                      {premier.destinataire?.nom && (
+                        <p className="text-base opacity-60" style={{ color: texte }}>
+                          Pour{' '}
+                          <span className="font-medium opacity-90">
+                            {nomComplet(premier.destinataire.nom, premier.destinataire.prenom)}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm opacity-50 mb-1" style={{ color: texte }}>Arrivé à</p>
+                    <p className="text-2xl font-light tabular-nums" style={{ color: texte }}>
+                      {formatHeure(premier.heure_arrivee)}
+                    </p>
+                    {premier.statut === 'acceptee' && (
+                      <span className="mt-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500 text-white">
+                        Accepté
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
-            {visites.length > 1 && (
-              <p className="mt-8 text-sm opacity-40" style={{ color: texte }}>
-                {visites.length - 1} autre{visites.length > 2 ? 's' : ''} personne{visites.length > 2 ? 's' : ''} en attente
-              </p>
+            {/* ── LISTE DES SUIVANTS ── */}
+            {suite.length > 0 && (
+              <div className="flex-1 overflow-y-auto space-y-2">
+                {suite.map((visite, idx) => (
+                  <div
+                    key={visite.id}
+                    className="rounded-xl px-6 py-3 flex items-center gap-4"
+                    style={{ backgroundColor: `${overlay}0.07)`, border: `1px solid ${overlay}0.1)` }}
+                  >
+                    {/* Numéro */}
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-base flex-shrink-0"
+                      style={{ backgroundColor: `${overlay}0.12)`, color: texte, opacity: 0.8 }}
+                    >
+                      {idx + 2}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {visite.niveau_urgence === 'vip' && (
+                          <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-yellow-400 text-yellow-900">VIP</span>
+                        )}
+                        {visite.niveau_urgence === 'urgent' && (
+                          <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">URG</span>
+                        )}
+                        <p
+                          className="font-semibold truncate"
+                          style={{ fontSize: 'clamp(14px, 1.6vw, 20px)', color: texte }}
+                        >
+                          {nomComplet(visite.nom_visiteur, visite.prenom_visiteur)}
+                        </p>
+                        {visite.organisation_visiteur && (
+                          <p className="text-sm opacity-50 truncate hidden sm:block" style={{ color: texte }}>
+                            — {visite.organisation_visiteur}
+                          </p>
+                        )}
+                      </div>
+                      {visite.destinataire?.nom && (
+                        <p className="text-sm opacity-50 truncate" style={{ color: texte }}>
+                          Pour {nomComplet(visite.destinataire.nom, visite.destinataire.prenom)}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm opacity-40 tabular-nums" style={{ color: texte }}>
+                        {formatHeure(visite.heure_arrivee)}
+                      </p>
+                      {visite.statut === 'acceptee' && (
+                        <span className="text-xs font-semibold text-green-400">Accepté</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </>
-        ) : (
-          <p
-            className="font-light opacity-80 text-center leading-relaxed"
-            style={{ fontSize: 'clamp(22px, 3vw, 40px)', color: texte, maxWidth: '70%' }}
-          >
-            {entreprise.display_message}
-          </p>
         )}
       </div>
 
       {/* ── FOOTER ── */}
       <footer
-        className="flex items-center justify-between px-10 py-4"
-        style={{ borderTop: `1px solid rgba(255,255,255,0.08)` }}
+        className="flex items-center justify-between px-8 py-3 flex-shrink-0"
+        style={{ borderTop: `1px solid ${overlay}0.08)` }}
       >
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="opacity-30 text-xs" style={{ color: texte }}>En direct</span>
+          {visites.length > 0 && (
+            <span className="opacity-40 text-xs ml-2" style={{ color: texte }}>
+              · {visites.length} en attente
+            </span>
+          )}
         </div>
         <p className="opacity-20" style={{ fontSize: 11, color: texte }}>
           Powered by VisitPro
