@@ -113,6 +113,20 @@ export default function AccueilSecretairePage() {
       .eq('id', visiteId)
   }
 
+  const [rechargeFeedback, setRechargeFeedback] = useState<'idle' | 'sent'>('idle')
+
+  const rechargerAffichage = () => {
+    if (!utilisateur?.entreprise_id) return
+    const ch = supabase.channel(`display-${utilisateur.entreprise_id}`, { config: { broadcast: { ack: false } } })
+    ch.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        ch.send({ type: 'broadcast', event: 'force_reload', payload: {} })
+          .then(() => { setRechargeFeedback('sent'); setTimeout(() => setRechargeFeedback('idle'), 3000) })
+          .finally(() => supabase.removeChannel(ch))
+      }
+    })
+  }
+
   const visitesFiltrees = filtreStatut === 'tous'
     ? visites
     : visites.filter((v) => v.statut === filtreStatut)
@@ -138,9 +152,21 @@ export default function AccueilSecretairePage() {
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">
       {/* En-tête */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Bonjour, {utilisateur.prenom} 👋</h1>
-        <p className="text-gray-500 mt-1">Enregistrez les visiteurs et gérez l&apos;accueil</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Bonjour, {utilisateur.prenom} 👋</h1>
+          <p className="text-gray-500 mt-1">Enregistrez les visiteurs et gérez l&apos;accueil</p>
+        </div>
+        <button
+          onClick={rechargerAffichage}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+          title="Force le rechargement de l'écran d'affichage TV"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {rechargeFeedback === 'sent' ? 'Signal envoyé ✓' : 'Recharger l\'écran TV'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">

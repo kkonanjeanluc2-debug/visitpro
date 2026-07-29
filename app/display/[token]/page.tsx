@@ -114,7 +114,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     }
   }, [charger])
 
-  // Broadcast Realtime : rafraîchissement instantané quand un visiteur est enregistré
+  // Broadcast Realtime : rafraîchissement instantané + rechargement forcé depuis admin
   useEffect(() => {
     if (!entreprise?.id) return
     const supabase = createClient()
@@ -122,6 +122,9 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       .channel(`display-${entreprise.id}`)
       .on('broadcast', { event: 'nouveau_visiteur' }, () => {
         chargerRef.current()
+      })
+      .on('broadcast', { event: 'force_reload' }, () => {
+        window.location.reload()
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
