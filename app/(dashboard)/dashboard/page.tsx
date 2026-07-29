@@ -285,7 +285,8 @@ export default function DashboardPage() {
         updates.duree_attente = Math.round((now.getTime() - new Date(visite.heure_arrivee).getTime()) / 60000)
       }
     }
-    await supabase.from('visites').update(updates).eq('id', visiteId)
+    const { error: errDecision } = await supabase.from('visites').update(updates).eq('id', visiteId)
+    if (errDecision) { console.error('handleDecision update error:', errDecision); return }
 
     // Signal instantané vers l'écran d'attente public
     const displayCh = supabase.channel(`display-${utilisateur!.entreprise_id}`, { config: { broadcast: { ack: false } } })
@@ -318,10 +319,11 @@ export default function DashboardPage() {
     const dureeVisite = visite?.heure_entree
       ? Math.round((heureSortie.getTime() - new Date(visite.heure_entree).getTime()) / 60000)
       : null
-    await supabase.from('visites').update({
+    const { error: errTerminer } = await supabase.from('visites').update({
       statut: 'terminee', heure_sortie: heureSortie.toISOString(), duree_visite: dureeVisite,
       ...(sujetTraite ? { sujet_traite: sujetTraite } : {}),
     }).eq('id', visiteId)
+    if (errTerminer) { console.error('handleTerminer update error:', errTerminer); return }
 
     // Signal instantané vers l'écran d'attente public
     const displayCh2 = supabase.channel(`display-${utilisateur!.entreprise_id}`, { config: { broadcast: { ack: false } } })

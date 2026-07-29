@@ -57,6 +57,22 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     return () => clearInterval(t)
   }, [])
 
+  // Rechargement automatique toutes les 5 min — garantit le dernier code déployé
+  useEffect(() => {
+    const t = setTimeout(() => window.location.reload(), 5 * 60 * 1000)
+    return () => clearTimeout(t)
+  }, [])
+
+  // Vérification mise à jour SW toutes les 30s — active le nouveau code dès déploiement
+  useEffect(() => {
+    const check = () =>
+      navigator.serviceWorker?.getRegistration()
+        .then(reg => reg?.update())
+        .catch(() => {})
+    const interval = setInterval(check, 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Chargement des données
   const charger = useCallback(async () => {
     try {
