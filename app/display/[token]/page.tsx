@@ -282,11 +282,6 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
                       >
                         {formatHeure(visite.heure_arrivee)}
                       </p>
-                      {visite.statut === 'acceptee' && (
-                        <span className="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500 text-white">
-                          Accepté ✓
-                        </span>
-                      )}
                     </div>
                   </div>
                 )
