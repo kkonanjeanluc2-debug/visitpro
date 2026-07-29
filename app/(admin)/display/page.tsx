@@ -73,10 +73,11 @@ export default function DisplayConfigPage() {
     if (!utilisateur?.entreprise_id) return
     if (!confirm('Régénérer le lien ? L\'ancien lien ne fonctionnera plus.')) return
 
-    const { data } = await supabase.rpc('regenerer_display_token', {
-      entreprise_id_param: utilisateur.entreprise_id,
-    })
-    if (data) setConfig((c) => ({ ...c, display_token: data }))
+    const res = await fetch('/api/display/regenerer-token', { method: 'POST' })
+    if (res.ok) {
+      const { token } = await res.json()
+      if (token) setConfig((c) => ({ ...c, display_token: token }))
+    }
   }
 
   const urlDisplay = config.display_token
