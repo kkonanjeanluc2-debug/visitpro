@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 interface VisiteDisplay {
   id: string
@@ -39,53 +39,67 @@ function formatHeure(iso: string) {
 }
 
 export default function DisplayPage({ params }: { params: { token: string } }) {
+  const token = params.token
+
   const [entreprise, setEntreprise] = useState<EntrepriseDisplay | null>(null)
   const [visites, setVisites] = useState<VisiteDisplay[]>([])
   const [heureActuelle, setHeureActuelle] = useState<Date | null>(null)
   const [notFound, setNotFound] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [lastFetch, setLastFetch] = useState<string>('')
+  const mountedRef = useRef(true)
 
-  const charger = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/display/${params.token}?t=${Date.now()}`, { cache: 'no-store' })
-      if (res.status === 404) { setNotFound(true); return }
-      if (!res.ok) return
-      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[] } = await res.json()
-      setEntreprise(data.entreprise)
-
-      // Filtre : uniquement les visiteurs qui attendent (pas encore reçus)
-      const sorted = [...data.visites].sort((a, b) => {
-        const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
-        if (pDiff !== 0) return pDiff
-        const aOrdre = a.ordre_file ?? 999999
-        const bOrdre = b.ordre_file ?? 999999
-        if (aOrdre !== bOrdre) return aOrdre - bOrdre
-        return a.heure_arrivee.localeCompare(b.heure_arrivee)
-      })
-      setVisites(sorted.slice(0, 12))
-    } catch {
-      // réseau indisponible — on conserve le dernier état
-    }
-  }, [params.token])
-
-  useEffect(() => {
-    charger()
-    intervalRef.current = setInterval(charger, 2_000)
-
-    const onVisible = () => { if (document.visibilityState === 'visible') charger() }
-    document.addEventListener('visibilitychange', onVisible)
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [charger])
-
+  // Horloge
   useEffect(() => {
     setHeureActuelle(new Date())
     const t = setInterval(() => setHeureActuelle(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
+
+  // Polling principal
+  useEffect(() => {
+    mountedRef.current = true
+
+    async function charger() {
+      try {
+        const res = await fetch(
+          `/api/display/${token}?t=${Date.now()}`,
+          { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+        )
+        if (!mountedRef.current) return
+        if (res.status === 404) { setNotFound(true); return }
+        if (!res.ok) return
+        const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[] } = await res.json()
+        if (!mountedRef.current) return
+        setEntreprise(data.entreprise)
+        const sorted = [...data.visites].sort((a, b) => {
+          const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
+          if (pDiff !== 0) return pDiff
+          const aOrdre = a.ordre_file ?? 999999
+          const bOrdre = b.ordre_file ?? 999999
+          if (aOrdre !== bOrdre) return aOrdre - bOrdre
+          return a.heure_arrivee.localeCompare(b.heure_arrivee)
+        })
+        setVisites(sorted.slice(0, 12))
+        setLastFetch(new Date().toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+      } catch {
+        // réseau indisponible — on conserve le dernier état
+      }
+    }
+
+    charger()
+    const interval = setInterval(charger, 2_000)
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') charger()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      mountedRef.current = false
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [token])
 
   if (notFound) {
     return (
@@ -111,8 +125,6 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
   const texte = entreprise.display_couleur_texte
   const isDark = fond !== '#F9FAFB' && fond !== '#FFFFFF'
   const overlay = isDark ? 'rgba(255,255,255,' : 'rgba(0,0,0,'
-  const premier = visites[0] ?? null
-  const suite = visites.slice(1)
 
   return (
     <div
@@ -293,9 +305,16 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="opacity-30 text-xs" style={{ color: texte }}>En direct</span>
         </div>
-        <p className="opacity-20" style={{ fontSize: 11, color: texte }}>
-          Powered by VisitPro
-        </p>
+        <div className="flex items-center gap-4">
+          {lastFetch && (
+            <span className="opacity-20 text-xs tabular-nums" style={{ color: texte }}>
+              {visites.length} en attente · {lastFetch}
+            </span>
+          )}
+          <p className="opacity-20" style={{ fontSize: 11, color: texte }}>
+            Powered by VisitPro
+          </p>
+        </div>
       </footer>
     </div>
   )

@@ -4,6 +4,14 @@
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
+
+// Bypass total du cache pour les routes display — toujours réseau
+self.addEventListener('fetch', (event) => {
+  if (event.request.url.includes('/api/display/')) {
+    event.stopImmediatePropagation()
+    event.respondWith(fetch(event.request.clone()))
+  }
+})
 // Compilé par next-pwa et fusionné dans le SW principal
 
 // ── Réception d'une notification push ────────────────────────────────────────
