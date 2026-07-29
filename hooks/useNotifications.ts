@@ -2,48 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { jouerSon, initialiserAudio } from '@/lib/sound'
 import type { Notification } from '@/types'
-
-// ─── Audio : WAV généré en JS (évite les blocages AudioContext) ─────────────
-
-let _audioUrl: string | null = null
-
-function getBeepUrl(): string | null {
-  if (typeof window === 'undefined') return null
-  if (_audioUrl) return _audioUrl
-  try {
-    const sr = 8000
-    const dur = 0.35
-    const freq = 880
-    const n = Math.floor(sr * dur)
-    const buf = new ArrayBuffer(44 + n * 2)
-    const v = new DataView(buf)
-    const s = (o: number, str: string) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)) }
-    s(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); s(8, 'WAVE')
-    s(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true)
-    v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true)
-    v.setUint16(32, 2, true); v.setUint16(34, 16, true)
-    s(36, 'data'); v.setUint32(40, n * 2, true)
-    for (let i = 0; i < n; i++) {
-      const t = i / sr
-      const env = Math.exp(-9 * t)
-      const sample = (Math.sin(2 * Math.PI * freq * t) * 0.7 + Math.sin(2 * Math.PI * freq * 1.5 * t) * 0.3) * env * 0.45
-      v.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.floor(sample * 32767))), true)
-    }
-    _audioUrl = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))
-    return _audioUrl
-  } catch { return null }
-}
-
-function jouerSon(): void {
-  const url = getBeepUrl()
-  if (!url) return
-  try {
-    const a = new Audio(url)
-    a.volume = 0.7
-    a.play().catch(() => {})
-  } catch {}
-}
 
 // ─── Notification OS ────────────────────────────────────────────────────────
 
@@ -55,11 +15,23 @@ function notifierOS(titre: string, corps: string): void {
       body: corps,
       icon: '/favicon.ico',
       requireInteraction: true,
-      tag: 'visitpro',
+      tag: 'visitpro-' + Date.now(),
     })
     n.onclick = () => { window.focus(); n.close() }
     setTimeout(() => n.close(), 20000)
   } catch {}
+}
+
+// Signal visuel via le titre de l'onglet (visible dans la barre des tâches)
+function signalerTitre(titre: string): void {
+  if (typeof document === 'undefined') return
+  const original = document.title
+  let count = 0
+  const id = setInterval(() => {
+    document.title = count % 2 === 0 ? `🔔 ${titre}` : original
+    count++
+    if (count >= 12) { clearInterval(id); document.title = original }
+  }, 700)
 }
 
 // ─── Hook ───────────────────────────────────────────────────────────────────
@@ -76,13 +48,29 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
   const [messagesNonLus, setMessagesNonLus] = useState(0)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const lastIdRef = useRef<string | null>(null)
+  const premierChargementRef = useRef(true)
 
+  // Initialiser AudioContext + résoudre la politique autoplay desktop
+  useEffect(() => initialiserAudio(), [])
+
+  // Demander permission notifications OS au premier clic (respect Chrome 94+)
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission !== 'default') return
+    const demander = () => {
+      Notification.requestPermission().catch(() => {})
+      document.removeEventListener('click', demander)
     }
-    getBeepUrl()
+    document.addEventListener('click', demander)
+    return () => document.removeEventListener('click', demander)
+  }, [])
+
+  const alerter = useCallback((n: Notification) => {
+    const type = n.type === 'nouvelle_visite' ? 'nouvelle_visite' : 'changement_statut'
+    jouerSon(type)
+    notifierOS(n.titre, n.corps ?? '')
+    signalerTitre(n.titre)
   }, [])
 
   const charger = useCallback(async () => {
@@ -94,10 +82,19 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
         .eq('destinataire_id', utilisateurId)
         .order('created_at', { ascending: false })
         .limit(30)
-      setNotifications(data ?? [])
+      const list = data ?? []
+
+      // Détection de nouvelles notifications via polling (secours si Realtime échoue)
+      if (!premierChargementRef.current && list.length > 0 && lastIdRef.current !== null && list[0].id !== lastIdRef.current) {
+        alerter(list[0] as Notification)
+      }
+      if (list.length > 0) lastIdRef.current = list[0].id
+      premierChargementRef.current = false
+
+      setNotifications(list)
     } catch {}
     finally { setLoading(false) }
-  }, [utilisateurId])
+  }, [utilisateurId, alerter])
 
   const chargerMessagesNonLus = useCallback(async () => {
     if (!utilisateurId) return
@@ -117,7 +114,10 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
     charger()
     chargerMessagesNonLus()
 
-    // Canal notifications
+    // ── Polling de secours toutes les 5s (si Realtime échoue sur desktop) ────
+    const pollInterval = setInterval(() => chargerRef.current(), 5000)
+
+    // ── Canal Realtime notifications ────────────────────────────────────────
     const channelNotifs = supabase
       .channel(`notifs-${utilisateurId}`)
       .on('postgres_changes', {
@@ -127,13 +127,13 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
         filter: `destinataire_id=eq.${utilisateurId}`,
       }, (payload) => {
         const n = payload.new as Notification
+        lastIdRef.current = n.id  // Évite le doublon polling+Realtime
         setNotifications((prev) => [n, ...prev])
-        jouerSon()
-        notifierOS(n.titre, n.corps ?? '')
+        alerter(n)
       })
       .subscribe()
 
-    // Canal messages non lus (badge uniquement)
+    // ── Canal messages non lus ──────────────────────────────────────────────
     const channelMessages = supabase
       .channel(`msg-nonlus-${utilisateurId}`)
       .on('postgres_changes', {
@@ -143,7 +143,7 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
         filter: `destinataire_id=eq.${utilisateurId}`,
       }, () => {
         setMessagesNonLus(prev => prev + 1)
-        jouerSon()
+        jouerSon('changement_statut')
       })
       .on('postgres_changes', {
         event: 'UPDATE',
@@ -156,6 +156,7 @@ export function useNotifications(utilisateurId: string | null): NotificationsSta
       .subscribe()
 
     return () => {
+      clearInterval(pollInterval)
       supabase.removeChannel(channelNotifs)
       supabase.removeChannel(channelMessages)
     }

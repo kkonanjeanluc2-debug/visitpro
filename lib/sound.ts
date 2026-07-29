@@ -20,17 +20,23 @@ export function initialiserAudio(): () => void {
     return () => {}
   }
 
-  // Le navigateur suspend l'AudioContext s'il n'y a pas eu de geste utilisateur.
-  // On le réactive à chaque click/touch pour qu'il soit prêt quand le son arrive.
+  // Tentative de reprise immédiate (réussit si la page a été ouverte par geste)
+  _ctx.resume().catch(() => {})
+
+  // Réactiver à chaque interaction pour qu'il soit prêt quand le son arrive
   const resume = () => {
     if (_ctx?.state === 'suspended') _ctx.resume().catch(() => {})
   }
 
   document.addEventListener('click', resume)
+  document.addEventListener('mousedown', resume)
+  document.addEventListener('keydown', resume)
   document.addEventListener('touchstart', resume)
 
   return () => {
     document.removeEventListener('click', resume)
+    document.removeEventListener('mousedown', resume)
+    document.removeEventListener('keydown', resume)
     document.removeEventListener('touchstart', resume)
   }
 }
