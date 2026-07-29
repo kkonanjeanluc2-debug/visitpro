@@ -47,7 +47,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
 
   const charger = useCallback(async () => {
     try {
-      const res = await fetch(`/api/display/${params.token}`, { cache: 'no-store' })
+      const res = await fetch(`/api/display/${params.token}?t=${Date.now()}`, { cache: 'no-store' })
       if (res.status === 404) { setNotFound(true); return }
       if (!res.ok) return
       const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[] } = await res.json()

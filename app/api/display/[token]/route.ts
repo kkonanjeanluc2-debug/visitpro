@@ -32,13 +32,20 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     .eq('entreprise_id', entreprise.id)
     .in('statut', ['en_attente', 'acceptee'])
     .gte('heure_arrivee', `${today}T00:00:00`)
-    .lte('heure_arrivee', `${today}T23:59:59`)
+    .order('heure_arrivee', { ascending: true })
     .limit(50)
 
-  if (visitesError) console.error('[display] visites error:', visitesError.message)
+  console.log(`[display] ${entreprise.nom} | today=${today} | visites=${visites?.length ?? 0} | err=${visitesError?.message ?? 'none'}`)
+  visites?.forEach(v => console.log(`  - ${v.nom_visiteur} | statut=${v.statut} | arrivee=${v.heure_arrivee}`))
 
   return NextResponse.json(
-    { entreprise, visites: visites ?? [] },
-    { headers: { 'Cache-Control': 'no-store' } }
+    { entreprise, visites: visites ?? [], _ts: Date.now() },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    }
   )
 }
