@@ -21,7 +21,9 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  // On ne filtre PAS par date — le statut (en_attente/acceptee) suffit.
+  // Un filtre `gte(heure_arrivee, today)` sans fuseau horaire explicite peut
+  // exclure des visites selon la timezone de la session Supabase.
   const { data: visites, error: visitesError } = await admin
     .from('visites')
     .select(`
@@ -31,7 +33,6 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     `)
     .eq('entreprise_id', entreprise.id)
     .in('statut', ['en_attente', 'acceptee'])
-    .gte('heure_arrivee', `${today}T00:00:00`)
     .order('heure_arrivee', { ascending: true })
     .limit(50)
 
