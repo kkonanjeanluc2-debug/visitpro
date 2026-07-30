@@ -28,14 +28,14 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     .from('visites')
     .select('id, nom_visiteur, prenom_visiteur, organisation_visiteur, statut, niveau_urgence, ordre_file, heure_arrivee, temps_attente_estime, created_at, destinataire_id')
     .eq('entreprise_id', entreprise.id)
-    .in('statut', ['en_attente', 'acceptee'])
+    .in('statut', ['en_attente'])
     .gte('created_at', `${todayUTC}T00:00:00Z`)
     .order('created_at', { ascending: true })
     .limit(50)
 
   // Requête 2 : noms des destinataires (séparée pour ne pas bloquer les visites)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const destinataireIds = [...new Set((visitesData ?? []).map((v: any) => v.destinataire_id).filter(Boolean))]
+  const destinataireIds = Array.from(new Set((visitesData ?? []).map((v: any) => v.destinataire_id).filter(Boolean)))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const destinataireMap: Record<string, { prenom: string | null; nom: string }> = {}
 
