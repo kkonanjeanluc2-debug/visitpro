@@ -36,7 +36,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     .from('visites')
     .select(selectFields)
     .eq('entreprise_id', entreprise.id)
-    .in('statut', ['en_attente'])
+    .in('statut', ['en_attente', 'acceptee'])
     .gte('created_at', `${todayUTC}T00:00:00Z`)
     .order('created_at', { ascending: true })
     .limit(50)
