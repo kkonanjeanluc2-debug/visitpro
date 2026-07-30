@@ -151,6 +151,24 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
     document.title = totalBadge > 0 ? `(${totalBadge}) VisitPro` : 'VisitPro'
   }, [totalBadge])
 
+  // Auto-activer le son à la première interaction utilisateur (clic, toucher, clavier)
+  useEffect(() => {
+    const activer = () => {
+      setSonActif(true)
+      document.removeEventListener('click', activer)
+      document.removeEventListener('keydown', activer)
+      document.removeEventListener('touchstart', activer)
+    }
+    document.addEventListener('click', activer)
+    document.addEventListener('keydown', activer)
+    document.addEventListener('touchstart', activer)
+    return () => {
+      document.removeEventListener('click', activer)
+      document.removeEventListener('keydown', activer)
+      document.removeEventListener('touchstart', activer)
+    }
+  }, [])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
