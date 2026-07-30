@@ -336,15 +336,6 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
         corps: `Motif : ${motif}${organisation ? ` — ${organisation}` : ''}`,
       })
 
-      // Signal instantané vers l'écran d'attente public
-      const displayCh = supabase.channel(`display-${entrepriseId}`, { config: { broadcast: { ack: false } } })
-      displayCh.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          displayCh.send({ type: 'broadcast', event: 'nouveau_visiteur', payload: {} })
-            .finally(() => supabase.removeChannel(displayCh))
-        }
-      })
-
       // Reset formulaire
       setNom('')
       setPrenom('')

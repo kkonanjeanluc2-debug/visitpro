@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { useVisitesAujourdhui } from '@/hooks/useVisites'
@@ -24,6 +24,26 @@ export default function AccueilSecretairePage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const supabase = createClient()
 
+  // Canal pré-abonné pour signaler l'écran TV instantanément (pas de délai d'abonnement)
+  const displayChRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  useEffect(() => {
+    if (!utilisateur?.entreprise_id) return
+    const client = createClient()
+    const ch = client.channel(`display-${utilisateur.entreprise_id}`, {
+      config: { broadcast: { ack: false } },
+    })
+    ch.subscribe()
+    displayChRef.current = ch
+    return () => {
+      client.removeChannel(ch)
+      displayChRef.current = null
+    }
+  }, [utilisateur?.entreprise_id])
+
+  const signalEcranTV = useCallback(() => {
+    displayChRef.current?.send({ type: 'broadcast', event: 'nouveau_visiteur', payload: {} }).catch(() => {})
+  }, [])
+
   const { visites, loading } = useVisitesAujourdhui(
     utilisateur?.entreprise_id ?? null,
     undefined,
@@ -42,6 +62,9 @@ export default function AccueilSecretairePage() {
   }, [utilisateur?.entreprise_id])
 
   const handleVisiteCreee = async (visiteId: string) => {
+    // Signaler l'écran TV immédiatement via le canal déjà abonné
+    signalEcranTV()
+
     const { data } = await supabase
       .from('visites')
       .select('*, destinataire:utilisateurs!destinataire_id(id, nom, prenom, poste)')
@@ -107,29 +130,16 @@ export default function AccueilSecretairePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ visite_id: visiteId, duree_visite: dureeVisite }),
     })
-    if (res.ok && utilisateur?.entreprise_id) {
-      const ch = supabase.channel(`display-${utilisateur.entreprise_id}`, { config: { broadcast: { ack: false } } })
-      ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          ch.send({ type: 'broadcast', event: 'nouveau_visiteur', payload: {} })
-            .finally(() => supabase.removeChannel(ch))
-        }
-      })
-    }
+    if (res.ok) signalEcranTV()
   }
 
   const [rechargeFeedback, setRechargeFeedback] = useState<'idle' | 'sent'>('idle')
 
   const rechargerAffichage = () => {
-    if (!utilisateur?.entreprise_id) return
-    const ch = supabase.channel(`display-${utilisateur.entreprise_id}`, { config: { broadcast: { ack: false } } })
-    ch.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        ch.send({ type: 'broadcast', event: 'force_reload', payload: {} })
-          .then(() => { setRechargeFeedback('sent'); setTimeout(() => setRechargeFeedback('idle'), 3000) })
-          .finally(() => supabase.removeChannel(ch))
-      }
-    })
+    displayChRef.current
+      ?.send({ type: 'broadcast', event: 'force_reload', payload: {} })
+      .then(() => { setRechargeFeedback('sent'); setTimeout(() => setRechargeFeedback('idle'), 3000) })
+      .catch(() => {})
   }
 
   const visitesFiltrees = filtreStatut === 'tous'
