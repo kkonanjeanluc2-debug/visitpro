@@ -1,10 +1,22 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 import { NextResponse } from 'next/server'
+import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 
-export async function GET(_req: Request, { params }: { params: { token: string } }) {
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'CDN-Cache-Control': 'no-store',
+  'Vercel-CDN-Cache-Control': 'no-store',
+}
+
+async function handleDisplay(token: string) {
+  noStore()
+
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -14,16 +26,16 @@ export async function GET(_req: Request, { params }: { params: { token: string }
   const { data: entreprise } = await admin
     .from('entreprises')
     .select('id, nom, logo_url, display_message, display_couleur_fond, display_couleur_texte')
-    .eq('display_token', params.token)
+    .eq('display_token', token)
     .single()
 
   if (!entreprise) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    return NextResponse.json({ error: 'not_found' }, { status: 404, headers: NO_CACHE_HEADERS })
   }
 
   const todayUTC = new Date().toISOString().split('T')[0]
 
-  // Requête 1 : visites du jour en attente ou acceptées (sans JOIN pour éviter toute exclusion de ligne)
+  // Requête 1 : visites du jour en_attente — sans JOIN pour éviter toute exclusion de ligne
   const { data: visitesData, error: visitesError } = await admin
     .from('visites')
     .select('id, nom_visiteur, prenom_visiteur, organisation_visiteur, statut, niveau_urgence, ordre_file, heure_arrivee, temps_attente_estime, created_at, destinataire_id')
@@ -33,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     .order('created_at', { ascending: true })
     .limit(50)
 
-  // Requête 2 : noms des destinataires (séparée pour ne pas bloquer les visites)
+  // Requête 2 : noms des destinataires — séparée pour ne pas bloquer les visites
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const destinataireIds = Array.from(new Set((visitesData ?? []).map((v: any) => v.destinataire_id).filter(Boolean)))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,7 +61,6 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     }
   }
 
-  // Fusion : heure_arrivee avec fallback + destinataire injecté
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visites = (visitesData ?? []).map((v: any) => ({
     ...v,
@@ -63,12 +74,16 @@ export async function GET(_req: Request, { params }: { params: { token: string }
 
   return NextResponse.json(
     { entreprise, visites, _ts: Date.now() },
-    {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      },
-    }
+    { headers: NO_CACHE_HEADERS }
   )
+}
+
+// GET : utilisé par les anciens clients
+export async function GET(_req: Request, { params }: { params: { token: string } }) {
+  return handleDisplay(params.token)
+}
+
+// POST : utilisé par le display page — POST n'est jamais mis en cache par aucun CDN
+export async function POST(_req: Request, { params }: { params: { token: string } }) {
+  return handleDisplay(params.token)
 }

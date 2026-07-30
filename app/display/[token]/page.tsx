@@ -47,8 +47,10 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
   const [heureActuelle, setHeureActuelle] = useState<Date | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [lastFetch, setLastFetch] = useState<string>('')
+  const [pollErreurs, setPollErreurs] = useState(0)
   const mountedRef = useRef(true)
   const chargerRef = useRef<() => void>(() => {})
+  const abortRef = useRef<AbortController | null>(null)
 
   // Horloge
   useEffect(() => {
@@ -72,18 +74,26 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     }).catch(() => {})
   }, [])
 
-  // Chargement des données
+  // Chargement des données — POST pour éviter tout cache CDN
   const charger = useCallback(async () => {
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     try {
       const res = await fetch(
-        `/api/display/${token}?t=${Date.now()}`,
-        { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+        `/api/display/${token}`,
+        { method: 'POST', signal: ctrl.signal, cache: 'no-store' }
       )
       if (!mountedRef.current) return
       if (res.status === 404) { setNotFound(true); return }
-      if (!res.ok) return
-      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[] } = await res.json()
+      if (!res.ok) {
+        console.error('[display] poll HTTP', res.status)
+        setPollErreurs((n) => n + 1)
+        return
+      }
+      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[]; _ts: number } = await res.json()
       if (!mountedRef.current) return
+      setPollErreurs(0)
       setEntreprise(data.entreprise)
       const sorted = [...data.visites].sort((a, b) => {
         const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
@@ -93,7 +103,12 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       })
       setVisites(sorted.slice(0, 12))
       setLastFetch(new Date().toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-    } catch {}
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        console.error('[display] poll err:', err)
+        setPollErreurs((n) => n + 1)
+      }
+    }
   }, [token])
 
   // Garder chargerRef synchronisé pour accès depuis le callback broadcast
@@ -329,8 +344,13 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           <span className="opacity-30 text-xs" style={{ color: texte }}>En direct</span>
         </div>
         <div className="flex items-center gap-4">
+          {pollErreurs > 0 && (
+            <span className="text-xs font-bold text-red-400">
+              ⚠ {pollErreurs} erreur(s) de connexion
+            </span>
+          )}
           {lastFetch && (
-            <span className="opacity-20 text-xs tabular-nums" style={{ color: texte }}>
+            <span className="opacity-60 text-xs tabular-nums" style={{ color: texte }}>
               {visites.length} en attente · {lastFetch}
             </span>
           )}
