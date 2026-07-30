@@ -89,7 +89,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
         const pDiff = prioriteUrgence(a.niveau_urgence) - prioriteUrgence(b.niveau_urgence)
         if (pDiff !== 0) return pDiff
         // FIFO strict : le plus ancien en tête de liste
-        return a.heure_arrivee.localeCompare(b.heure_arrivee)
+        return (a.heure_arrivee ?? '').localeCompare(b.heure_arrivee ?? '')
       })
       setVisites(sorted.slice(0, 12))
       setLastFetch(new Date().toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))

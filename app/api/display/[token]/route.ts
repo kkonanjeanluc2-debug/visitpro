@@ -38,7 +38,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     .eq('entreprise_id', entreprise.id)
     .in('statut', ['en_attente'])
     .gte('created_at', `${todayUTC}T00:00:00Z`)
-    .order('heure_arrivee', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
     .limit(50)
 
   // Si heure_arrivee est NULL (anciens inserts), utiliser created_at pour l'affichage
