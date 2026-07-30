@@ -21,45 +21,32 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
   }
 
-  // Filtre sur aujourd'hui en UTC explicite (suffixe Z) pour éviter
-  // toute ambiguïté de timezone côté session Supabase/PostgreSQL.
+  // Filtre sur les visites créées aujourd'hui (UTC).
+  // On utilise created_at (toujours défini par la DB) plutôt que heure_arrivee
+  // pour éviter tout problème si heure_arrivee est NULL ou mal défini.
   const todayUTC = new Date().toISOString().split('T')[0]
   const selectFields = `
     id, nom_visiteur, prenom_visiteur, organisation_visiteur,
     statut, niveau_urgence, ordre_file, heure_arrivee, temps_attente_estime,
+    created_at,
     destinataire:utilisateurs!destinataire_id(prenom, nom)
   `
 
-  // Visites avec heure_arrivee renseignée (cas normal)
-  const { data: visitesAvecDate, error: errAvecDate } = await admin
+  const { data: visitesData, error: visitesError } = await admin
     .from('visites')
     .select(selectFields)
     .eq('entreprise_id', entreprise.id)
     .in('statut', ['en_attente'])
-    .gte('heure_arrivee', `${todayUTC}T00:00:00Z`)
-    .order('heure_arrivee', { ascending: true })
-    .limit(50)
-
-  // Visites sans heure_arrivee (inserts anciens avant le correctif) — on utilise created_at
-  const { data: visitesSansDate } = await admin
-    .from('visites')
-    .select(selectFields + ', created_at')
-    .eq('entreprise_id', entreprise.id)
-    .in('statut', ['en_attente'])
-    .is('heure_arrivee', null)
     .gte('created_at', `${todayUTC}T00:00:00Z`)
+    .order('heure_arrivee', { ascending: true, nullsFirst: false })
     .limit(50)
 
-  // Fusionner et corriger heure_arrivee = created_at pour les anciens inserts
+  // Si heure_arrivee est NULL (anciens inserts), utiliser created_at pour l'affichage
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const visitesAvecDateList: any[] = visitesAvecDate ?? []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const visitesSansDateList: any[] = (visitesSansDate ?? []).map((v: any) => ({
+  const visites = (visitesData ?? []).map((v: any) => ({
     ...v,
-    heure_arrivee: v.created_at as string,
+    heure_arrivee: (v.heure_arrivee ?? v.created_at) as string,
   }))
-  const visites = [...visitesAvecDateList, ...visitesSansDateList]
-  const visitesError = errAvecDate
 
   console.log(`[display] ${entreprise.nom} | visites=${visites.length} | err=${visitesError?.message ?? 'none'}`)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
