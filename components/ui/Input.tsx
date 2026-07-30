@@ -5,9 +5,10 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string
   hint?: string
   icon?: React.ReactNode
+  suffix?: React.ReactNode
 }
 
-export default function Input({ label, error, hint, icon, className = '', id, ...props }: InputProps) {
+export default function Input({ label, error, hint, icon, suffix, className = '', id, ...props }: InputProps) {
   const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
 
   return (
@@ -32,8 +33,14 @@ export default function Input({ label, error, hint, icon, className = '', id, ..
             placeholder:text-gray-400
             ${error ? 'border-red-400 focus:border-red-400 focus:ring-red-200' : 'border-gray-300'}
             ${icon ? 'pl-9' : ''}
+            ${suffix ? 'pr-10' : ''}
             ${className}`}
         />
+        {suffix && (
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+            {suffix}
+          </div>
+        )}
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       {hint && !error && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
