@@ -21,31 +21,40 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
   }
 
-  // Filtre sur les visites créées aujourd'hui (UTC).
-  // On utilise created_at (toujours défini par la DB) plutôt que heure_arrivee
-  // pour éviter tout problème si heure_arrivee est NULL ou mal défini.
   const todayUTC = new Date().toISOString().split('T')[0]
-  const selectFields = `
-    id, nom_visiteur, prenom_visiteur, organisation_visiteur,
-    statut, niveau_urgence, ordre_file, heure_arrivee, temps_attente_estime,
-    created_at,
-    destinataire:utilisateurs!destinataire_id(prenom, nom)
-  `
 
+  // Requête 1 : visites du jour en attente ou acceptées (sans JOIN pour éviter toute exclusion de ligne)
   const { data: visitesData, error: visitesError } = await admin
     .from('visites')
-    .select(selectFields)
+    .select('id, nom_visiteur, prenom_visiteur, organisation_visiteur, statut, niveau_urgence, ordre_file, heure_arrivee, temps_attente_estime, created_at, destinataire_id')
     .eq('entreprise_id', entreprise.id)
     .in('statut', ['en_attente', 'acceptee'])
     .gte('created_at', `${todayUTC}T00:00:00Z`)
     .order('created_at', { ascending: true })
     .limit(50)
 
-  // Si heure_arrivee est NULL (anciens inserts), utiliser created_at pour l'affichage
+  // Requête 2 : noms des destinataires (séparée pour ne pas bloquer les visites)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const destinataireIds = [...new Set((visitesData ?? []).map((v: any) => v.destinataire_id).filter(Boolean))]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const destinataireMap: Record<string, { prenom: string | null; nom: string }> = {}
+
+  if (destinataireIds.length > 0) {
+    const { data: users } = await admin
+      .from('utilisateurs')
+      .select('id, prenom, nom')
+      .in('id', destinataireIds)
+    for (const u of users ?? []) {
+      destinataireMap[u.id] = { prenom: u.prenom, nom: u.nom }
+    }
+  }
+
+  // Fusion : heure_arrivee avec fallback + destinataire injecté
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visites = (visitesData ?? []).map((v: any) => ({
     ...v,
     heure_arrivee: (v.heure_arrivee ?? v.created_at) as string,
+    destinataire: v.destinataire_id ? (destinataireMap[v.destinataire_id] ?? null) : null,
   }))
 
   console.log(`[display] ${entreprise.nom} | visites=${visites.length} | err=${visitesError?.message ?? 'none'}`)
@@ -53,7 +62,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
   visites.forEach((v: any) => console.log(`  - ${v.nom_visiteur} | statut=${v.statut} | arrivee=${v.heure_arrivee}`))
 
   return NextResponse.json(
-    { entreprise, visites: visites ?? [], _ts: Date.now() },
+    { entreprise, visites, _ts: Date.now() },
     {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
