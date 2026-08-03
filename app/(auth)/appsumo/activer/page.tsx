@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
@@ -8,7 +8,7 @@ import Input from '@/components/ui/Input'
 
 type EtatCle = 'verification' | 'valide' | 'invalide' | 'deja_active' | 'rembourse'
 
-export default function AppSumoActiverPage() {
+function AppSumoActiverContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const licenceKey = (searchParams.get('key') ?? '').toUpperCase()
@@ -284,5 +284,17 @@ export default function AppSumoActiverPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function AppSumoActiverPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+      </div>
+    }>
+      <AppSumoActiverContent />
+    </Suspense>
   )
 }
