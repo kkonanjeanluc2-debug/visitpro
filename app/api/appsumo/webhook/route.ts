@@ -4,9 +4,9 @@ import { randomBytes } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
-// AppSumo envoie un GET pour valider que l'URL est accessible avant d'activer
+// AppSumo envoie un GET pour valider l'URL — attend { success: true }
 export async function GET() {
-  return NextResponse.json({ status: 200, message: 'VisitPro webhook ready' })
+  return NextResponse.json({ success: true })
 }
 
 function generateLicenceKey(): string {
