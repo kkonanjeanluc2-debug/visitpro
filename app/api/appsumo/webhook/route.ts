@@ -22,22 +22,31 @@ function mapPlan(planId: string): 'pro' | 'enterprise' {
 }
 
 export async function POST(req: Request) {
+  // Log complet pour diagnostiquer ce qu'AppSumo envoie exactement
+  const headersLog: Record<string, string> = {}
+  req.headers.forEach((v, k) => { headersLog[k] = v })
+  console.log('[appsumo webhook] headers:', JSON.stringify(headersLog))
+
   let body: Record<string, unknown>
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ status: 400, message: 'Invalid JSON' }, { status: 400 })
+    return NextResponse.json({ success: false, status: 400, message: 'Invalid JSON' }, { status: 400 })
   }
+  console.log('[appsumo webhook] body:', JSON.stringify(body))
 
-  // Vérification de la clé API (AppSumo la place dans le body ou en header)
+  // Vérification de la clé API AppSumo
   const apiKey =
     (body.api_key as string | undefined) ??
     req.headers.get('X-Api-Key') ??
     req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
 
+  console.log('[appsumo webhook] apiKey reçue:', apiKey ?? 'AUCUNE')
+  console.log('[appsumo webhook] apiKey attendue:', process.env.APPSUMO_API_KEY?.slice(0, 8) + '...')
+
   if (!process.env.APPSUMO_API_KEY || apiKey !== process.env.APPSUMO_API_KEY) {
-    console.error('[appsumo webhook] clé API invalide:', apiKey?.slice(0, 8))
-    return NextResponse.json({ status: 401, message: 'Unauthorized' }, { status: 401 })
+    console.error('[appsumo webhook] REJET clé invalide')
+    return NextResponse.json({ success: false, status: 401, message: 'Unauthorized' }, { status: 401 })
   }
 
   const action = body.action as string
