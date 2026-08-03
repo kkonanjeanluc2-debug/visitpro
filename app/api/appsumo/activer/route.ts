@@ -83,13 +83,18 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // 5. Créer l'abonnement actif (source AppSumo, pas d'essai)
+  // 5. Créer l'abonnement actif 1 an (source AppSumo, pas d'essai)
+  const dateDebut = new Date()
+  const dateFin = new Date(dateDebut)
+  dateFin.setFullYear(dateFin.getFullYear() + 1)
+
   await admin.from('abonnements').insert({
     entreprise_id: entreprise.id,
     plan: licence.plan,
     statut: 'actif',
     source: 'appsumo',
-    date_debut: new Date().toISOString(),
+    date_debut: dateDebut.toISOString(),
+    date_fin: dateFin.toISOString(),
   })
 
   // 6. Marquer la licence comme active
