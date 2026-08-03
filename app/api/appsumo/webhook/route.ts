@@ -4,6 +4,11 @@ import { randomBytes } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
+// AppSumo envoie un GET pour valider que l'URL est accessible avant d'activer
+export async function GET() {
+  return NextResponse.json({ status: 200, message: 'VisitPro webhook ready' })
+}
+
 function generateLicenceKey(): string {
   const part = () => randomBytes(2).toString('hex').toUpperCase()
   return `VISIT-${part()}-${part()}-${part()}`
