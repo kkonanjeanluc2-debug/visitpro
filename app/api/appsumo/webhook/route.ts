@@ -73,6 +73,7 @@ export async function POST(req: Request) {
     const activationUrl = `${base}/appsumo/activer?key=${licenceKey}`
 
     return NextResponse.json({
+      success: true,
       status: 200,
       message: 'License Created',
       activation_url: activationUrl,
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
         .eq('source', 'appsumo')
     }
 
-    return NextResponse.json({ status: 200, message: 'License Disabled' })
+    return NextResponse.json({ success: true, status: 200, message: 'License Disabled' })
   }
 
   // ── RÉACTIVATION ──────────────────────────────────────────────────────────
@@ -127,7 +128,7 @@ export async function POST(req: Request) {
         .eq('source', 'appsumo')
     }
 
-    return NextResponse.json({ status: 200, message: 'License Enabled' })
+    return NextResponse.json({ success: true, status: 200, message: 'License Enabled' })
   }
 
   // ── UPGRADE / DOWNGRADE ───────────────────────────────────────────────────
@@ -158,8 +159,8 @@ export async function POST(req: Request) {
         .eq('id', licence.entreprise_id)
     }
 
-    return NextResponse.json({ status: 200, message: 'License Updated', next_plan: null })
+    return NextResponse.json({ success: true, status: 200, message: 'License Updated', next_plan: null })
   }
 
-  return NextResponse.json({ status: 200, message: 'Event received' })
+  return NextResponse.json({ success: true, status: 200, message: 'Event received' })
 }
