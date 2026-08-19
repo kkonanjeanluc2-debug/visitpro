@@ -13,6 +13,7 @@ import Select from '@/components/ui/Select'
 import { nomComplet } from '@/lib/utils'
 import { jouerSon, initialiserAudio } from '@/lib/sound'
 import { lireVisite } from '@/lib/speech'
+import ReunionsWidget from '@/components/dashboard/ReunionsWidget'
 import type { Visite, DashboardStats, Utilisateur, Site } from '@/types'
 
 type Periode = 'today' | '7j' | '30j' | 'custom'
@@ -407,6 +408,10 @@ export default function DashboardPage() {
       </div>
 
       <KpiGrid stats={stats} loading={loading} />
+
+      {utilisateur && ['patron', 'collaborateur'].includes(utilisateur.role) && (
+        <ReunionsWidget entrepriseId={utilisateur.entreprise_id} />
+      )}
 
       {visitesEnCours.length > 0 && (
         <div>

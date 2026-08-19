@@ -291,3 +291,96 @@ export function composerEmailRappelRdv(params: {
 }) {
   return templateRappelRdv(params)
 }
+
+// ─── Réunions ─────────────────────────────────────────────────────────────────
+
+export function templateConvocationReunion(params: {
+  nomParticipant: string
+  titreReunion: string
+  nomEntreprise: string
+  dateReunion: string
+  heureDebut: string
+  heureFin?: string
+  lieu?: string
+  description?: string
+  lienReunion?: string
+}) {
+  const { nomParticipant, titreReunion, nomEntreprise, dateReunion, heureDebut, heureFin, lieu, description, lienReunion } = params
+  return {
+    sujet: `Convocation — ${titreReunion} — ${dateReunion}`,
+    html: `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
+    <div style="background:#1E3A5F;padding:24px 32px;text-align:center">
+      <div style="color:#93C5FD;font-size:13px;margin-bottom:4px">VisitPro — ${nomEntreprise}</div>
+      <div style="color:#fff;font-size:20px;font-weight:500">📋 Convocation à une réunion</div>
+    </div>
+    <div style="padding:32px">
+      <p style="color:#333;font-size:15px;margin:0 0 16px">Bonjour <strong>${nomParticipant}</strong>,</p>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 24px">
+        Vous êtes convoqué(e) à la réunion suivante organisée par <strong>${nomEntreprise}</strong> :
+      </p>
+      <div style="background:#f0f9ff;border-left:4px solid #1E3A5F;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:24px">
+        <div style="color:#0c447c;font-size:14px;font-weight:700;margin-bottom:12px">${titreReunion}</div>
+        <div style="color:#333;font-size:13px;margin-bottom:6px">📅 &nbsp;${dateReunion}</div>
+        <div style="color:#333;font-size:13px;margin-bottom:6px">🕐 &nbsp;${heureDebut}${heureFin ? ` → ${heureFin}` : ''}</div>
+        ${lieu ? `<div style="color:#333;font-size:13px;margin-bottom:6px">📍 &nbsp;${lieu}</div>` : ''}
+      </div>
+      ${description ? `<p style="color:#555;font-size:13px;line-height:1.6;margin:0 0 20px;background:#f9fafb;padding:12px;border-radius:8px">${description}</p>` : ''}
+      ${lienReunion ? `<div style="text-align:center;margin-bottom:24px"><a href="${lienReunion}" style="display:inline-block;background:#1E3A5F;color:#fff;font-size:14px;font-weight:500;padding:10px 20px;border-radius:8px;text-decoration:none">Voir la réunion</a></div>` : ''}
+      <p style="color:#888;font-size:12px;margin:24px 0 0;border-top:1px solid #e5e7eb;padding-top:16px">Ce message est envoyé automatiquement par VisitPro pour le compte de ${nomEntreprise}.</p>
+    </div>
+  </div>
+</body>
+</html>`,
+    texte: `Convocation — ${titreReunion}\n\nBonjour ${nomParticipant},\n\nVous êtes convoqué(e) à la réunion "${titreReunion}" le ${dateReunion} à ${heureDebut}${lieu ? ` (${lieu})` : ''}.\n\nVisitPro — ${nomEntreprise}`,
+  }
+}
+
+export function templateCompteRenduFinalise(params: {
+  nomParticipant: string
+  titreReunion: string
+  nomEntreprise: string
+  dateReunion: string
+  nbDecisions: number
+  nbActions: number
+  lienReunion?: string
+}) {
+  const { nomParticipant, titreReunion, nomEntreprise, dateReunion, nbDecisions, nbActions, lienReunion } = params
+  return {
+    sujet: `Compte-rendu disponible — ${titreReunion}`,
+    html: `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
+    <div style="background:#085041;padding:20px 32px;text-align:center">
+      <div style="color:#9FE1CB;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Compte-rendu finalisé</div>
+      <div style="color:#fff;font-size:18px;font-weight:500;margin-top:4px">✅ CR disponible</div>
+    </div>
+    <div style="padding:28px 32px">
+      <p style="color:#333;font-size:15px;margin:0 0 16px">Bonjour <strong>${nomParticipant}</strong>,</p>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 20px">
+        Le compte-rendu de la réunion <strong>"${titreReunion}"</strong> du ${dateReunion} est maintenant disponible.
+      </p>
+      <div style="display:flex;gap:12px;margin-bottom:24px">
+        <div style="flex:1;background:#e1f5ee;border-radius:8px;padding:14px;text-align:center">
+          <div style="color:#085041;font-size:24px;font-weight:700">${nbDecisions}</div>
+          <div style="color:#0f6e56;font-size:12px">décision${nbDecisions > 1 ? 's' : ''}</div>
+        </div>
+        <div style="flex:1;background:#e6f1fb;border-radius:8px;padding:14px;text-align:center">
+          <div style="color:#0c447c;font-size:24px;font-weight:700">${nbActions}</div>
+          <div style="color:#185fa5;font-size:12px">action${nbActions > 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      ${lienReunion ? `<div style="text-align:center;margin-bottom:20px"><a href="${lienReunion}" style="display:inline-block;background:#085041;color:#fff;font-size:14px;font-weight:500;padding:10px 20px;border-radius:8px;text-decoration:none">Consulter le compte-rendu</a></div>` : ''}
+      <p style="color:#888;font-size:12px;margin:0">Message automatique VisitPro — ${nomEntreprise}</p>
+    </div>
+  </div>
+</body>
+</html>`,
+    texte: `Compte-rendu — ${titreReunion}\n\nBonjour ${nomParticipant},\n\nLe compte-rendu de la réunion "${titreReunion}" du ${dateReunion} est disponible : ${nbDecisions} décision(s), ${nbActions} action(s).\n\nVisitPro — ${nomEntreprise}`,
+  }
+}

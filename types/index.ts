@@ -259,6 +259,99 @@ export interface PlanInfo {
   support: 'email' | 'prioritaire'
 }
 
+// ─── Module Réunions ──────────────────────────────────────────────────────────
+
+export type StatutReunion     = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
+export type TypeReunion       = 'interne' | 'externe' | 'comite' | 'autre'
+export type StatutParticipant = 'invite' | 'confirme' | 'absent' | 'excuse'
+export type StatutPointOdj    = 'a_traiter' | 'en_cours' | 'traite' | 'reporte'
+export type StatutPreparation = 'en_cours' | 'pret' | 'valide'
+export type TypePreparation   = 'document' | 'note' | 'action' | 'question'
+export type StatutCompteRendu = 'brouillon' | 'finalise'
+
+export interface Reunion {
+  id: string
+  entreprise_id: string
+  titre: string
+  type: TypeReunion
+  statut: StatutReunion
+  date_reunion: string
+  heure_debut: string
+  heure_fin?: string
+  lieu?: string
+  organisateur_id: string
+  description?: string
+  created_at: string
+  organisateur?: Utilisateur
+  participants?: ReunionParticipant[]
+  points?: ReunionPoint[]
+  compte_rendu?: { id: string; statut: StatutCompteRendu } | null
+}
+
+export interface ReunionParticipant {
+  id: string
+  reunion_id: string
+  utilisateur_id?: string
+  nom_externe?: string
+  email_externe?: string
+  statut_presence: StatutParticipant
+  convocation_envoyee: boolean
+  created_at: string
+  utilisateur?: Utilisateur
+}
+
+export interface ReunionPoint {
+  id: string
+  reunion_id: string
+  titre: string
+  description?: string
+  responsable_id?: string
+  duree_estimee?: number
+  ordre: number
+  statut: StatutPointOdj
+  created_at: string
+  responsable?: Utilisateur
+  preparations?: ReunionPreparation[]
+}
+
+export interface ReunionPreparation {
+  id: string
+  reunion_id: string
+  point_id?: string
+  auteur_id: string
+  type: TypePreparation
+  titre: string
+  contenu?: string
+  statut: StatutPreparation
+  created_at: string
+  auteur?: Utilisateur
+}
+
+export interface PointAction {
+  id: string
+  description: string
+  responsable: string
+  echeance?: string
+  statut: 'a_faire' | 'en_cours' | 'fait'
+}
+
+export interface CompteRendu {
+  id: string
+  reunion_id: string
+  redacteur_id: string
+  resume?: string
+  decisions: string[]
+  plan_actions: PointAction[]
+  observations?: string
+  statut: StatutCompteRendu
+  envoye_le?: string
+  created_at: string
+  redacteur?: Utilisateur
+  reunion?: Reunion
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const PLANS: Record<Plan, PlanInfo> = {
   starter: {
     nom: 'Starter',
