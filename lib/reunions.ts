@@ -160,6 +160,26 @@ export async function mettreAJourPresence(id: string, statut: StatutParticipant)
   if (error) throw error
 }
 
+export async function assignerRoleSeance(
+  reunionId: string,
+  participantId: string | null,
+  role: 'secretaire' | 'president'
+): Promise<void> {
+  const sb = createClient()
+  // Retirer le rôle à l'éventuel titulaire actuel
+  await sb.from('reunion_participants')
+    .update({ role_seance: null })
+    .eq('reunion_id', reunionId)
+    .eq('role_seance', role)
+  // Assigner au nouveau participant (null = juste retirer)
+  if (participantId) {
+    const { error } = await sb.from('reunion_participants')
+      .update({ role_seance: role })
+      .eq('id', participantId)
+    if (error) throw error
+  }
+}
+
 export async function marquerConvocationEnvoyee(reunionId: string): Promise<void> {
   const sb = createClient()
   const { error } = await sb

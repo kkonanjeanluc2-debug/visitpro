@@ -8,10 +8,11 @@ import { useAuth } from '@/hooks/useAuth'
 import {
   obtenirReunion, changerStatutReunion, supprimerReunion,
   ajouterParticipantInterne, ajouterParticipantExterne,
-  supprimerParticipant, mettreAJourPresence,
+  supprimerParticipant, mettreAJourPresence, assignerRoleSeance,
   ajouterPoint, modifierPoint, supprimerPoint,
   marquerConvocationEnvoyee,
 } from '@/lib/reunions'
+import type { RoleSeance } from '@/types'
 import type { Reunion, Utilisateur, StatutParticipant, StatutReunion } from '@/types'
 import ReunionBadge from '@/components/reunions/ReunionBadge'
 import ParticipantsSelector from '@/components/reunions/ParticipantsSelector'
@@ -134,7 +135,9 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
   if (!reunion) return null
 
   const canEdit = ['patron', 'admin'].includes(utilisateur?.role ?? '')
-  const isParticipant = (reunion.participants ?? []).some((p) => p.utilisateur_id === utilisateur?.id)
+  const currentParticipant = (reunion.participants ?? []).find((p) => p.utilisateur_id === utilisateur?.id)
+  const isParticipant = !!currentParticipant
+  const isSecretaireSeance = currentParticipant?.role_seance === 'secretaire'
   const nextAction = STATUT_ACTIONS[reunion.statut]
 
   const dateStr = new Date(reunion.date_reunion + 'T00:00:00').toLocaleDateString('fr-FR', {
@@ -222,7 +225,7 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
 
         {/* Actions rapides */}
         <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
-          {canEdit && reunion.statut !== 'annulee' && (
+          {(canEdit || isSecretaireSeance) && reunion.statut !== 'annulee' && (
             <Link href={`/dashboard/reunions/${id}/compte-rendu`}>
               <Button size="sm" variant={reunion.compte_rendu ? 'outline' : 'primary'} className="flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,6 +296,14 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
               onAjouterExterne={async (nom, email) => { await ajouterParticipantExterne(id, nom, email); await charger() }}
               onSupprimer={async (pid) => { await supprimerParticipant(pid); await charger() }}
               onChangerPresence={async (pid, statut: StatutParticipant) => { await mettreAJourPresence(pid, statut); await charger() }}
+              onDefinirRole={async (pid, role: RoleSeance | null) => {
+                if (role) { await assignerRoleSeance(id, pid, role) }
+                else {
+                  const p = (reunion.participants ?? []).find((x) => x.id === pid)
+                  if (p?.role_seance) await assignerRoleSeance(id, null, p.role_seance)
+                }
+                await charger()
+              }}
               readOnly={!canEdit}
             />
           )}

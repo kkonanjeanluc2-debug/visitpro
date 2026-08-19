@@ -23,9 +23,11 @@ export default function CompteRenduSecretairePage({ params }: { params: { id: st
   const charger = useCallback(async () => {
     try {
       const data = await obtenirReunion(id)
-      // Secrétaire de séance = secrétaire ET participant de cette réunion
-      const isParticipant = (data.participants ?? []).some((p) => p.utilisateur_id === utilisateur?.id)
-      if (!isParticipant) {
+      // Secrétaire de séance = participant avec role_seance = 'secretaire'
+      const isSecretaireSeance = (data.participants ?? []).some(
+        (p) => p.utilisateur_id === utilisateur?.id && p.role_seance === 'secretaire'
+      )
+      if (!isSecretaireSeance) {
         setAccesRefuse(true)
         return
       }

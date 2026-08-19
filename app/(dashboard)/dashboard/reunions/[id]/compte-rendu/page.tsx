@@ -19,21 +19,21 @@ export default function CompteRenduPage({ params }: { params: { id: string } }) 
   const [entreprise, setEntreprise] = useState<Entreprise | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (utilisateur && !['patron', 'admin'].includes(utilisateur.role)) {
-      router.replace(`/dashboard/reunions/${id}`)
-    }
-  }, [utilisateur, id, router])
-
   const charger = useCallback(async () => {
     try {
       const data = await obtenirReunion(id)
+      // Autoriser : patron/admin OU secrétaire de séance désignée
+      const isSecretaireSeance = (data.participants ?? []).some(
+        (p) => p.utilisateur_id === utilisateur?.id && p.role_seance === 'secretaire'
+      )
+      const canAccess = ['patron', 'admin'].includes(utilisateur?.role ?? '') || isSecretaireSeance
+      if (!canAccess) { router.replace(`/dashboard/reunions/${id}`); return }
       setReunion(data)
       setCompteRendu(data.compte_rendu as CompteRendu | null ?? null)
     } catch {
       router.push('/dashboard/reunions')
     }
-  }, [id, router])
+  }, [id, router, utilisateur])
 
   const chargerEntreprise = useCallback(async () => {
     if (!utilisateur) return

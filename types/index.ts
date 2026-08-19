@@ -288,6 +288,8 @@ export interface Reunion {
   compte_rendu?: { id: string; statut: StatutCompteRendu } | null
 }
 
+export type RoleSeance = 'secretaire' | 'president'
+
 export interface ReunionParticipant {
   id: string
   reunion_id: string
@@ -295,6 +297,7 @@ export interface ReunionParticipant {
   nom_externe?: string
   email_externe?: string
   statut_presence: StatutParticipant
+  role_seance?: RoleSeance | null
   convocation_envoyee: boolean
   created_at: string
   utilisateur?: Utilisateur

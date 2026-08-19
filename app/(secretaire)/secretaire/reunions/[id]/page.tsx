@@ -63,7 +63,9 @@ export default function ReunionDetailSecretairePage({ params }: { params: { id: 
 
   if (!reunion || !utilisateur) return null
 
-  const isParticipant = (reunion.participants ?? []).some((p) => p.utilisateur_id === utilisateur.id)
+  const currentParticipant = (reunion.participants ?? []).find((p) => p.utilisateur_id === utilisateur.id)
+  const isParticipant = !!currentParticipant
+  const isSecretaireSeance = currentParticipant?.role_seance === 'secretaire'
 
   const dateStr = new Date(reunion.date_reunion + 'T00:00:00').toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -110,7 +112,7 @@ export default function ReunionDetailSecretairePage({ params }: { params: { id: 
         </div>
 
         {/* Lien CR si secrétaire de séance */}
-        {isParticipant && reunion.statut !== 'annulee' && (
+        {isSecretaireSeance && reunion.statut !== 'annulee' && (
           <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3">
             <Link
               href={`/secretaire/reunions/${id}/compte-rendu`}

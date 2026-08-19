@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Utilisateur, ReunionParticipant, StatutParticipant } from '@/types'
+import type { Utilisateur, ReunionParticipant, StatutParticipant, RoleSeance } from '@/types'
 import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -23,16 +23,30 @@ interface Props {
   onAjouterExterne: (nom: string, email?: string) => Promise<void>
   onSupprimer: (id: string) => Promise<void>
   onChangerPresence?: (id: string, statut: StatutParticipant) => Promise<void>
+  onDefinirRole?: (participantId: string, role: RoleSeance | null) => Promise<void>
   readOnly?: boolean
 }
 
 export default function ParticipantsSelector({
-  collaborateurs, participants, onAjouterInterne, onAjouterExterne, onSupprimer, onChangerPresence, readOnly,
+  collaborateurs, participants, onAjouterInterne, onAjouterExterne, onSupprimer,
+  onChangerPresence, onDefinirRole, readOnly,
 }: Props) {
   const [nomExterne, setNomExterne] = useState('')
   const [emailExterne, setEmailExterne] = useState('')
   const [ajoutExterne, setAjoutExterne] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
+  const [roleLoading, setRoleLoading] = useState<string | null>(null)
+
+  const handleToggleRole = async (p: ReunionParticipant, role: RoleSeance) => {
+    if (!onDefinirRole) return
+    setRoleLoading(`${p.id}-${role}`)
+    try {
+      // Si le participant est déjà titulaire de ce rôle → on retire
+      await onDefinirRole(p.id, p.role_seance === role ? null : role)
+    } finally {
+      setRoleLoading(null)
+    }
+  }
 
   const idsDejaPresents = new Set(participants.map((p) => p.utilisateur_id).filter(Boolean))
 
@@ -74,7 +88,15 @@ export default function ParticipantsSelector({
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{nom}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900 truncate">{nom}</p>
+                    {p.role_seance === 'secretaire' && (
+                      <span className="text-xs px-1.5 py-0 rounded-full bg-purple-100 text-purple-700 font-medium">Sec.</span>
+                    )}
+                    {p.role_seance === 'president' && (
+                      <span className="text-xs px-1.5 py-0 rounded-full bg-blue-100 text-blue-700 font-medium">Prés.</span>
+                    )}
+                  </div>
                   {p.utilisateur?.poste && (
                     <p className="text-xs text-gray-400 truncate">{p.utilisateur.poste}</p>
                   )}
@@ -82,6 +104,36 @@ export default function ParticipantsSelector({
                     <p className="text-xs text-gray-400 truncate">{p.email_externe}</p>
                   )}
                 </div>
+
+                {/* Boutons de rôle de séance */}
+                {onDefinirRole && !readOnly && (
+                  <div className="flex gap-1">
+                    <button
+                      title={p.role_seance === 'secretaire' ? 'Retirer secrétaire de séance' : 'Désigner secrétaire de séance'}
+                      onClick={() => handleToggleRole(p, 'secretaire')}
+                      disabled={roleLoading === `${p.id}-secretaire`}
+                      className={`w-6 h-6 rounded text-xs font-bold transition-colors ${
+                        p.role_seance === 'secretaire'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-200 text-gray-400 hover:bg-purple-100 hover:text-purple-600'
+                      }`}
+                    >
+                      S
+                    </button>
+                    <button
+                      title={p.role_seance === 'president' ? 'Retirer président de séance' : 'Désigner président de séance'}
+                      onClick={() => handleToggleRole(p, 'president')}
+                      disabled={roleLoading === `${p.id}-president`}
+                      className={`w-6 h-6 rounded text-xs font-bold transition-colors ${
+                        p.role_seance === 'president'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-400 hover:bg-blue-100 hover:text-blue-600'
+                      }`}
+                    >
+                      P
+                    </button>
+                  </div>
+                )}
 
                 {onChangerPresence && !readOnly ? (
                   <select
