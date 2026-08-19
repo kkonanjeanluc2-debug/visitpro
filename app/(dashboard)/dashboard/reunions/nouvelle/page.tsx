@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { creerReunion } from '@/lib/reunions'
@@ -11,6 +11,12 @@ import Link from 'next/link'
 export default function NouvelleReunionPage() {
   const { utilisateur } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    if (utilisateur && !['patron', 'admin'].includes(utilisateur.role)) {
+      router.replace('/dashboard/reunions')
+    }
+  }, [utilisateur, router])
 
   const handleSubmit = useCallback(async (data: ReunionFormData) => {
     if (!utilisateur) return

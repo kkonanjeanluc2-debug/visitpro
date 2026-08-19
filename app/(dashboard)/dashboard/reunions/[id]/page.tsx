@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, use } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -26,8 +26,8 @@ const STATUT_ACTIONS: Partial<Record<StatutReunion, { label: string; nextStatut:
   en_cours:  { label: 'Terminer la réunion', nextStatut: 'terminee', cls: 'bg-gray-700 hover:bg-gray-800 text-white' },
 }
 
-export default function ReunionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function ReunionDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const { utilisateur } = useAuth()
   const router = useRouter()
   const [reunion, setReunion] = useState<Reunion | null>(null)
@@ -56,7 +56,6 @@ export default function ReunionDetailPage({ params }: { params: Promise<{ id: st
       .select('*')
       .eq('entreprise_id', utilisateur.entreprise_id)
       .eq('actif', true)
-      .neq('role', 'secretaire')
       .order('prenom')
     setCollaborateurs(data ?? [])
   }, [utilisateur])
@@ -134,8 +133,8 @@ export default function ReunionDetailPage({ params }: { params: Promise<{ id: st
 
   if (!reunion) return null
 
-  const isOrganisateur = reunion.organisateur_id === utilisateur?.id
-  const canEdit = isOrganisateur || ['patron', 'admin'].includes(utilisateur?.role ?? '')
+  const canEdit = ['patron', 'admin'].includes(utilisateur?.role ?? '')
+  const isParticipant = (reunion.participants ?? []).some((p) => p.utilisateur_id === utilisateur?.id)
   const nextAction = STATUT_ACTIONS[reunion.statut]
 
   const dateStr = new Date(reunion.date_reunion + 'T00:00:00').toLocaleDateString('fr-FR', {
@@ -223,7 +222,7 @@ export default function ReunionDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Actions rapides */}
         <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
-          {reunion.statut !== 'annulee' && (
+          {canEdit && reunion.statut !== 'annulee' && (
             <Link href={`/dashboard/reunions/${id}/compte-rendu`}>
               <Button size="sm" variant={reunion.compte_rendu ? 'outline' : 'primary'} className="flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -317,7 +316,7 @@ export default function ReunionDetailPage({ params }: { params: Promise<{ id: st
               reunionId={id}
               utilisateurId={utilisateur.id}
               points={reunion.points ?? []}
-              readOnly={reunion.statut === 'annulee'}
+              readOnly={(!isParticipant && !canEdit) || reunion.statut === 'annulee'}
             />
           )}
         </div>

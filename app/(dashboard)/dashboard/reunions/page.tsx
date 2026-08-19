@@ -79,14 +79,16 @@ export default function ReunionsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Réunions</h1>
           <p className="text-sm text-gray-500 mt-0.5">{reunions.length} réunion{reunions.length > 1 ? 's' : ''} au total</p>
         </div>
-        <Link href="/dashboard/reunions/nouvelle">
-          <Button className="flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nouvelle réunion
-          </Button>
-        </Link>
+        {['patron', 'admin'].includes(utilisateur?.role ?? '') && (
+          <Link href="/dashboard/reunions/nouvelle">
+            <Button className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nouvelle réunion
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Barre de recherche */}
@@ -146,7 +148,7 @@ export default function ReunionsPage() {
                 ? 'Aucune réunion planifiée à venir'
                 : 'Aucune réunion dans cette catégorie'}
           </p>
-          {!recherche && (
+          {!recherche && ['patron', 'admin'].includes(utilisateur?.role ?? '') && (
             <Link href="/dashboard/reunions/nouvelle">
               <Button>Planifier une réunion</Button>
             </Link>
