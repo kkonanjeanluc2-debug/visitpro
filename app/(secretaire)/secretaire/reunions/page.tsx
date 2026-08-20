@@ -44,6 +44,28 @@ export default function ReunionsSecretairePage() {
 
   useEffect(() => { charger() }, [charger])
 
+  // Realtime sur la table reunions
+  useEffect(() => {
+    if (!utilisateur) return
+    const sb = createClient()
+    const channel = sb
+      .channel(`reunions-sec-${utilisateur.entreprise_id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'reunions',
+        filter: `entreprise_id=eq.${utilisateur.entreprise_id}`,
+      }, (payload) => setReunions((prev) => [payload.new as Reunion, ...prev]))
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'reunions',
+        filter: `entreprise_id=eq.${utilisateur.entreprise_id}`,
+      }, (payload) => setReunions((prev) => prev.map((r) => r.id === payload.new.id ? { ...r, ...payload.new } : r)))
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'reunions',
+        filter: `entreprise_id=eq.${utilisateur.entreprise_id}`,
+      }, (payload) => setReunions((prev) => prev.filter((r) => r.id !== payload.old.id)))
+      .subscribe()
+    return () => { sb.removeChannel(channel) }
+  }, [utilisateur])
+
   const today = new Date().toISOString().split('T')[0]
 
   const aVenir  = reunions.filter((r) => r.date_reunion >= today && r.statut === 'planifiee')

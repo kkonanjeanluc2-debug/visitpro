@@ -12,8 +12,7 @@ import {
   ajouterPoint, modifierPoint, supprimerPoint,
   marquerConvocationEnvoyee,
 } from '@/lib/reunions'
-import type { RoleSeance } from '@/types'
-import type { Reunion, Utilisateur, StatutParticipant, StatutReunion } from '@/types'
+import type { RoleSeance, Reunion, ReunionParticipant, ReunionPoint, Utilisateur, StatutParticipant, StatutReunion } from '@/types'
 import ReunionBadge from '@/components/reunions/ReunionBadge'
 import ParticipantsSelector from '@/components/reunions/ParticipantsSelector'
 import OrdreJourForm from '@/components/reunions/OrdreJourForm'
@@ -64,23 +63,71 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
   useEffect(() => { charger() }, [charger])
   useEffect(() => { chargerCollabs() }, [chargerCollabs])
 
-  // Realtime sur la réunion
+  // Realtime incrémental — mise à jour locale sans refetch complet
   useEffect(() => {
     const sb = createClient()
     const channel = sb
       .channel(`reunion-detail-${id}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'reunion_participants',
-        filter: `reunion_id=eq.${id}`,
-      }, () => charger())
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'reunion_points',
-        filter: `reunion_id=eq.${id}`,
-      }, () => charger())
+      // Réunion (statut, titre…)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'reunions', filter: `id=eq.${id}` },
+        (payload) => setReunion((r) => r ? { ...r, ...payload.new } : r)
+      )
+      // Participants — INSERT (fetch avec join utilisateur)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reunion_participants', filter: `reunion_id=eq.${id}` },
+        async (payload) => {
+          const { data } = await createClient().from('reunion_participants')
+            .select('*, utilisateur:utilisateurs(id, nom, prenom, photo_url, poste, email)')
+            .eq('id', payload.new.id).single()
+          if (data) setReunion((r) => r ? {
+            ...r,
+            participants: [...(r.participants ?? []).filter((p) => p.id !== data.id), data as ReunionParticipant],
+          } : r)
+        }
+      )
+      // Participants — UPDATE (statut_presence, role_seance, convocation_envoyee…)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'reunion_participants', filter: `reunion_id=eq.${id}` },
+        (payload) => setReunion((r) => r ? {
+          ...r,
+          participants: (r.participants ?? []).map((p) => p.id === payload.new.id ? { ...p, ...payload.new } : p),
+        } : r)
+      )
+      // Participants — DELETE
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'reunion_participants', filter: `reunion_id=eq.${id}` },
+        (payload) => setReunion((r) => r ? {
+          ...r,
+          participants: (r.participants ?? []).filter((p) => p.id !== payload.old.id),
+        } : r)
+      )
+      // Points — INSERT (fetch avec join responsable)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reunion_points', filter: `reunion_id=eq.${id}` },
+        async (payload) => {
+          const { data } = await createClient().from('reunion_points')
+            .select('*, responsable:utilisateurs(id, nom, prenom)')
+            .eq('id', payload.new.id).single()
+          if (data) setReunion((r) => r ? {
+            ...r,
+            points: [...(r.points ?? []).filter((p) => p.id !== data.id), data as ReunionPoint],
+          } : r)
+        }
+      )
+      // Points — UPDATE
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'reunion_points', filter: `reunion_id=eq.${id}` },
+        (payload) => setReunion((r) => r ? {
+          ...r,
+          points: (r.points ?? []).map((p) => p.id === payload.new.id ? { ...p, ...payload.new } : p),
+        } : r)
+      )
+      // Points — DELETE
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'reunion_points', filter: `reunion_id=eq.${id}` },
+        (payload) => setReunion((r) => r ? {
+          ...r,
+          points: (r.points ?? []).filter((p) => p.id !== payload.old.id),
+        } : r)
+      )
       .subscribe()
 
     return () => { sb.removeChannel(channel) }
-  }, [id, charger])
+  }, [id])
 
   const handleChangerStatut = async (statut: StatutReunion) => {
     setActionLoading(true)
@@ -116,7 +163,10 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
         body: JSON.stringify({ type: 'convocation_reunion', reunionId: id }),
       })
       await marquerConvocationEnvoyee(id)
-      await charger()
+      setReunion((r) => r ? {
+        ...r,
+        participants: (r.participants ?? []).map((p) => ({ ...p, convocation_envoyee: true })),
+      } : r)
     } finally {
       setConvocLoading(false)
     }
@@ -292,17 +342,46 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
             <ParticipantsSelector
               collaborateurs={collaborateurs}
               participants={reunion.participants ?? []}
-              onAjouterInterne={async (uid) => { await ajouterParticipantInterne(id, uid); await charger() }}
-              onAjouterExterne={async (nom, email) => { await ajouterParticipantExterne(id, nom, email); await charger() }}
-              onSupprimer={async (pid) => { await supprimerParticipant(pid); await charger() }}
-              onChangerPresence={async (pid, statut: StatutParticipant) => { await mettreAJourPresence(pid, statut); await charger() }}
+              onAjouterInterne={async (uid) => {
+                const p = await ajouterParticipantInterne(id, uid)
+                setReunion((r) => r ? { ...r, participants: [...(r.participants ?? []), p] } : r)
+              }}
+              onAjouterExterne={async (nom, email) => {
+                const p = await ajouterParticipantExterne(id, nom, email)
+                setReunion((r) => r ? { ...r, participants: [...(r.participants ?? []), p] } : r)
+              }}
+              onSupprimer={async (pid) => {
+                await supprimerParticipant(pid)
+                setReunion((r) => r ? { ...r, participants: (r.participants ?? []).filter((p) => p.id !== pid) } : r)
+              }}
+              onChangerPresence={async (pid, statut: StatutParticipant) => {
+                await mettreAJourPresence(pid, statut)
+                setReunion((r) => r ? {
+                  ...r,
+                  participants: (r.participants ?? []).map((p) => p.id === pid ? { ...p, statut_presence: statut } : p),
+                } : r)
+              }}
               onDefinirRole={async (pid, role: RoleSeance | null) => {
-                if (role) { await assignerRoleSeance(id, pid, role) }
-                else {
+                if (role) {
+                  await assignerRoleSeance(id, pid, role)
+                  setReunion((r) => r ? {
+                    ...r,
+                    participants: (r.participants ?? []).map((p) =>
+                      p.id === pid ? { ...p, role_seance: role }
+                      : p.role_seance === role ? { ...p, role_seance: null }
+                      : p
+                    ),
+                  } : r)
+                } else {
                   const p = (reunion.participants ?? []).find((x) => x.id === pid)
-                  if (p?.role_seance) await assignerRoleSeance(id, null, p.role_seance)
+                  if (p?.role_seance) {
+                    await assignerRoleSeance(id, null, p.role_seance)
+                    setReunion((r) => r ? {
+                      ...r,
+                      participants: (r.participants ?? []).map((x) => x.id === pid ? { ...x, role_seance: null } : x),
+                    } : r)
+                  }
                 }
-                await charger()
               }}
               readOnly={!canEdit}
             />
@@ -313,11 +392,25 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
               points={reunion.points ?? []}
               collaborateurs={collaborateurs}
               onAjouter={async (titre, desc, resp, duree) => {
-                await ajouterPoint(id, { titre, description: desc, responsable_id: resp, duree_estimee: duree }, (reunion.points?.length ?? 0))
-                await charger()
+                const pt = await ajouterPoint(id, { titre, description: desc, responsable_id: resp, duree_estimee: duree }, (reunion.points?.length ?? 0))
+                setReunion((r) => r ? { ...r, points: [...(r.points ?? []), pt] } : r)
               }}
-              onModifier={async (pid, updates) => { await modifierPoint(pid, updates); await charger() }}
-              onSupprimer={async (pid) => { await supprimerPoint(pid); await charger() }}
+              onModifier={async (pid, updates) => {
+                await modifierPoint(pid, updates)
+                if ('responsable_id' in updates) {
+                  // Refetch ciblé pour obtenir le join responsable
+                  const { data } = await createClient().from('reunion_points')
+                    .select('*, responsable:utilisateurs(id, nom, prenom)')
+                    .eq('id', pid).single()
+                  if (data) setReunion((r) => r ? { ...r, points: (r.points ?? []).map((p) => p.id === pid ? data as ReunionPoint : p) } : r)
+                } else {
+                  setReunion((r) => r ? { ...r, points: (r.points ?? []).map((p) => p.id === pid ? { ...p, ...updates } as ReunionPoint : p) } : r)
+                }
+              }}
+              onSupprimer={async (pid) => {
+                await supprimerPoint(pid)
+                setReunion((r) => r ? { ...r, points: (r.points ?? []).filter((p) => p.id !== pid) } : r)
+              }}
               readOnly={!canEdit}
             />
           )}

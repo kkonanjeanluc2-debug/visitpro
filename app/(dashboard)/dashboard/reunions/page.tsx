@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { createClient } from '@/lib/supabase/client'
 import { listerReunions } from '@/lib/reunions'
 import type { Reunion, StatutReunion } from '@/types'
 import ReunionCard from '@/components/reunions/ReunionCard'
@@ -37,6 +38,28 @@ export default function ReunionsPage() {
   }, [utilisateur])
 
   useEffect(() => { charger() }, [charger])
+
+  // Realtime sur la table reunions
+  useEffect(() => {
+    if (!utilisateur) return
+    const sb = createClient()
+    const channel = sb
+      .channel(`reunions-list-${utilisateur.entreprise_id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'reunions',
+        filter: `entreprise_id=eq.${utilisateur.entreprise_id}`,
+      }, (payload) => setReunions((prev) => [...prev, payload.new as Reunion]))
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'reunions',
+        filter: `entreprise_id=eq.${utilisateur.entreprise_id}`,
+      }, (payload) => setReunions((prev) => prev.map((r) => r.id === payload.new.id ? { ...r, ...payload.new } : r)))
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'reunions',
+        filter: `entreprise_id=eq.${utilisateur.entreprise_id}`,
+      }, (payload) => setReunions((prev) => prev.filter((r) => r.id !== payload.old.id)))
+      .subscribe()
+    return () => { sb.removeChannel(channel) }
+  }, [utilisateur])
 
   const today = new Date().toISOString().split('T')[0]
 
