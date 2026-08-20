@@ -226,6 +226,7 @@ export default function ReunionDetailSecretairePage({ params }: { params: { id: 
               reunionId={id}
               utilisateurId={utilisateur.id}
               points={reunion.points ?? []}
+              collaborateurs={(reunion.participants ?? []).filter((p) => p.utilisateur).map((p) => p.utilisateur!)}
               readOnly={!isParticipant || reunion.statut === 'annulee'}
             />
           )}

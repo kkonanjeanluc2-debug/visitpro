@@ -327,6 +327,7 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
               reunionId={id}
               utilisateurId={utilisateur.id}
               points={reunion.points ?? []}
+              collaborateurs={collaborateurs}
               readOnly={(!isParticipant && !canEdit) || reunion.statut === 'annulee'}
             />
           )}
