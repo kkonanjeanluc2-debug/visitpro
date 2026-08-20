@@ -36,6 +36,20 @@ export default function PreparationBoard({ reunionId, utilisateurId, points, ini
   const [formContenu, setFormContenu] = useState('')
   const [formPoint, setFormPoint] = useState('')
   const [loading, setLoading] = useState(false)
+  // Champs spécifiques par type
+  const [formUrl, setFormUrl] = useState('')
+  const [formResponsable, setFormResponsable] = useState('')
+  const [formEcheance, setFormEcheance] = useState('')
+  const [formDestinataire, setFormDestinataire] = useState('')
+
+  const handleChangeType = (type: TypePreparation) => {
+    setFormType(type)
+    setFormContenu('')
+    setFormUrl('')
+    setFormResponsable('')
+    setFormEcheance('')
+    setFormDestinataire('')
+  }
 
   // Realtime sur la table preparations
   useEffect(() => {
@@ -59,6 +73,28 @@ export default function PreparationBoard({ reunionId, utilisateurId, points, ini
     return () => { sb.removeChannel(channel) }
   }, [reunionId])
 
+  const serializerContenu = (): string | undefined => {
+    if (formType === 'note') return formContenu.trim() || undefined
+    if (formType === 'document') {
+      if (!formUrl.trim()) return formContenu.trim() || undefined
+      return JSON.stringify({ url: formUrl.trim(), description: formContenu.trim() || undefined })
+    }
+    if (formType === 'action') {
+      const data: Record<string, string> = {}
+      if (formResponsable.trim()) data.responsable = formResponsable.trim()
+      if (formEcheance) data.echeance = formEcheance
+      if (formContenu.trim()) data.note = formContenu.trim()
+      return Object.keys(data).length ? JSON.stringify(data) : undefined
+    }
+    if (formType === 'question') {
+      return JSON.stringify({
+        question: formContenu.trim() || undefined,
+        destinataire: formDestinataire.trim() || undefined,
+      })
+    }
+    return formContenu.trim() || undefined
+  }
+
   const handleAjouter = async () => {
     if (!formTitre.trim()) return
     setLoading(true)
@@ -66,11 +102,13 @@ export default function PreparationBoard({ reunionId, utilisateurId, points, ini
       const input: CreatePreparationInput = {
         type: formType,
         titre: formTitre.trim(),
-        contenu: formContenu.trim() || undefined,
+        contenu: serializerContenu(),
         point_id: formPoint || undefined,
       }
       await ajouterPreparation(reunionId, utilisateurId, input)
-      setFormTitre(''); setFormContenu(''); setFormPoint(''); setShowForm(false)
+      setFormTitre(''); setFormContenu(''); setFormPoint('')
+      setFormUrl(''); setFormResponsable(''); setFormEcheance(''); setFormDestinataire('')
+      setShowForm(false)
     } finally {
       setLoading(false)
     }
@@ -145,32 +183,137 @@ export default function PreparationBoard({ reunionId, utilisateurId, points, ini
       {!readOnly && (
         showForm ? (
           <div className="p-4 border-2 border-dashed border-gray-200 rounded-xl space-y-3">
+            {/* Sélecteur de type */}
             <div className="flex gap-2 flex-wrap">
               {TYPE_OPTIONS.map(({ value, label, icon }) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setFormType(value)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${formType === value ? 'border-[rgb(var(--color-primary-rgb))] bg-[rgb(var(--color-primary-rgb))]/5 text-[rgb(var(--color-primary-rgb))]' : 'border-gray-200 text-gray-600'}`}
+                  onClick={() => handleChangeType(value)}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${formType === value ? 'border-[rgb(var(--color-primary-rgb))] bg-[rgb(var(--color-primary-rgb))]/5 text-[rgb(var(--color-primary-rgb))]' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
                 >
                   {icon} {label}
                 </button>
               ))}
             </div>
-            <Input label="Titre" value={formTitre} onChange={(e) => setFormTitre(e.target.value)} placeholder="Titre de la préparation" />
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Contenu (optionnel)</label>
-              <textarea
-                value={formContenu}
-                onChange={(e) => setFormContenu(e.target.value)}
-                rows={3}
-                placeholder="Détails, liens, notes…"
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))] resize-none"
-              />
-            </div>
+
+            {/* Titre commun à tous les types */}
+            <Input
+              label="Titre"
+              value={formTitre}
+              onChange={(e) => setFormTitre(e.target.value)}
+              placeholder={
+                formType === 'note' ? 'Titre de la note' :
+                formType === 'document' ? 'Nom du document' :
+                formType === 'action' ? 'Description de l\'action' :
+                'Intitulé de la question'
+              }
+            />
+
+            {/* Champs dynamiques par type */}
+            {formType === 'note' && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Contenu <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <textarea
+                  value={formContenu}
+                  onChange={(e) => setFormContenu(e.target.value)}
+                  rows={3}
+                  placeholder="Votre note, remarques, idées…"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))] resize-none"
+                />
+              </div>
+            )}
+
+            {formType === 'document' && (
+              <>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">URL / Lien</label>
+                  <input
+                    type="url"
+                    value={formUrl}
+                    onChange={(e) => setFormUrl(e.target.value)}
+                    placeholder="https://…"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))]"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Description <span className="text-gray-400 font-normal">(optionnelle)</span></label>
+                  <textarea
+                    value={formContenu}
+                    onChange={(e) => setFormContenu(e.target.value)}
+                    rows={2}
+                    placeholder="Brève description du document…"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))] resize-none"
+                  />
+                </div>
+              </>
+            )}
+
+            {formType === 'action' && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">Responsable</label>
+                    <input
+                      type="text"
+                      value={formResponsable}
+                      onChange={(e) => setFormResponsable(e.target.value)}
+                      placeholder="Nom du responsable"
+                      className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">Échéance</label>
+                    <input
+                      type="date"
+                      value={formEcheance}
+                      onChange={(e) => setFormEcheance(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Note <span className="text-gray-400 font-normal">(optionnelle)</span></label>
+                  <textarea
+                    value={formContenu}
+                    onChange={(e) => setFormContenu(e.target.value)}
+                    rows={2}
+                    placeholder="Précisions sur l'action…"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))] resize-none"
+                  />
+                </div>
+              </>
+            )}
+
+            {formType === 'question' && (
+              <>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Question détaillée</label>
+                  <textarea
+                    value={formContenu}
+                    onChange={(e) => setFormContenu(e.target.value)}
+                    rows={3}
+                    placeholder="Développez votre question…"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))] resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Adressée à <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                  <input
+                    type="text"
+                    value={formDestinataire}
+                    onChange={(e) => setFormDestinataire(e.target.value)}
+                    placeholder="Nom ou rôle de la personne concernée"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary-rgb))]/20 focus:border-[rgb(var(--color-primary-rgb))]"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Point associé (tous les types) */}
             {points.length > 0 && (
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Point associé</label>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Point de l'ordre du jour <span className="text-gray-400 font-normal">(optionnel)</span></label>
                 <select
                   value={formPoint}
                   onChange={(e) => setFormPoint(e.target.value)}
@@ -183,9 +326,14 @@ export default function PreparationBoard({ reunionId, utilisateurId, points, ini
                 </select>
               </div>
             )}
+
             <div className="flex gap-2">
               <Button size="sm" onClick={handleAjouter} loading={loading}>Ajouter</Button>
-              <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setFormTitre(''); setFormContenu('') }}>Annuler</Button>
+              <Button size="sm" variant="outline" onClick={() => {
+                setShowForm(false)
+                setFormTitre(''); setFormContenu(''); setFormPoint('')
+                setFormUrl(''); setFormResponsable(''); setFormEcheance(''); setFormDestinataire('')
+              }}>Annuler</Button>
             </div>
           </div>
         ) : (
