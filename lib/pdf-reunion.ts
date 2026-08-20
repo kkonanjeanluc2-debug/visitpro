@@ -7,15 +7,47 @@ const BLEU_CLAIR    = [147, 197, 253] as [number, number, number]
 const GRIS_CLAIR    = [243, 244, 246] as [number, number, number]
 const VERT          = [8, 80, 65] as [number, number, number]
 
+const STATUT_ODJ_LABEL: Record<string, string> = {
+  a_traiter: 'A traiter',
+  en_cours:  'En cours',
+  traite:    'Traite',
+  reporte:   'Reporte',
+}
+
+const ROW_H = 11   // hauteur ligne données (mm) — texte 11pt
+const SEC_H = 10   // hauteur bandeau section — texte 12pt
+
 function formatDateFr(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 }
 
-function nomParticipant(p: { utilisateur?: { nom: string; prenom: string } | null; nom_externe?: string | null }) {
+function nomCourt(p: { utilisateur?: { nom: string; prenom: string } | null; nom_externe?: string | null }) {
   if (p.utilisateur) return `${p.utilisateur.prenom} ${p.utilisateur.nom}`
   return p.nom_externe ?? ''
+}
+
+function nomAvecPoste(p: { utilisateur?: { nom: string; prenom: string; poste?: string | null } | null; nom_externe?: string | null }) {
+  const base = nomCourt(p)
+  const poste = p.utilisateur?.poste
+  return poste ? `${base} - ${poste}` : base
+}
+
+function checkPage(doc: jsPDF, y: number, needed: number, pageH: number): number {
+  if (y + needed > pageH - 18) { doc.addPage(); return 18 }
+  return y
+}
+
+// Bandeau de section (12pt, 10mm de haut)
+function section(doc: jsPDF, label: string, y: number, marginL: number, contentW: number, color = BLEU_PRIMAIRE) {
+  doc.setFillColor(...color)
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('times', 'bold')
+  doc.setFontSize(12)
+  doc.roundedRect(marginL, y, contentW, SEC_H, 1, 1, 'F')
+  doc.text(label, marginL + 3, y + 7)
+  return y + SEC_H + 4
 }
 
 export function genererCompteRenduPDF(
@@ -33,297 +65,359 @@ export function genererCompteRenduPDF(
 
   // ── EN-TÊTE ────────────────────────────────────────────────────────────────
   doc.setFillColor(...BLEU_PRIMAIRE)
-  doc.rect(0, 0, pageW, 32, 'F')
-
-  doc.setFillColor(255, 255, 255)
-  doc.setDrawColor(255, 255, 255)
-  // Bandeau accent
+  doc.rect(0, 0, pageW, 36, 'F')
   doc.setFillColor(147, 197, 253)
-  doc.rect(0, 32, pageW, 1.5, 'F')
+  doc.rect(0, 36, pageW, 1.5, 'F')
 
   doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.text('COMPTE-RENDU DE RÉUNION', marginL, 14)
+  doc.setFont('times', 'bold')
+  doc.setFontSize(20)
+  doc.text('COMPTE-RENDU DE REUNION', marginL, 16)
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFont('times', 'normal')
+  doc.setFontSize(12)
   doc.setTextColor(...BLEU_CLAIR)
-  doc.text(entreprise.nom.toUpperCase(), marginL, 21)
-  doc.text('Document généré par VisitPro', pageW - marginR, 21, { align: 'right' })
+  doc.text(entreprise.nom.toUpperCase(), marginL, 25)
+  doc.text('Document genere par VisitPro', pageW - marginR, 25, { align: 'right' })
 
-  // Réf + date génération
-  const refDoc = `Réf: CR-${reunion.id.slice(0, 8).toUpperCase()}`
-  const dateGen = new Date().toLocaleDateString('fr-FR')
-  doc.setFontSize(7)
+  doc.setFontSize(8)
   doc.setTextColor(200, 215, 240)
-  doc.text(`${refDoc}  ·  Généré le ${dateGen}`, marginL, 28)
+  const refDoc = `Ref: CR-${reunion.id.slice(0, 8).toUpperCase()}`
+  const dateGen = new Date().toLocaleDateString('fr-FR')
+  doc.text(`${refDoc}  -  Genere le ${dateGen}`, marginL, 32)
 
-  y = 42
+  y = 46
 
   // ── I — INFORMATIONS GÉNÉRALES ─────────────────────────────────────────────
-  doc.setFillColor(...BLEU_PRIMAIRE)
-  doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.roundedRect(marginL, y, contentW, 7, 1, 1, 'F')
-  doc.text('I  —  INFORMATIONS GÉNÉRALES', marginL + 3, y + 5)
-  y += 10
+  y = section(doc, 'I  -  INFORMATIONS GENERALES', y, marginL, contentW)
+
+  const heureStr = reunion.heure_debut.slice(0, 5) + (reunion.heure_fin ? ` - ${reunion.heure_fin.slice(0, 5)}` : '')
 
   const infoRows: [string, string][] = [
-    ['Titre de la réunion', reunion.titre],
-    ['Type', { interne: 'Réunion interne', externe: 'Réunion externe', comite: 'Comité', autre: 'Autre' }[reunion.type] ?? reunion.type],
+    ['Titre de la reunion', reunion.titre],
+    ['Type', { interne: 'Reunion interne', externe: 'Reunion externe', comite: 'Comite', autre: 'Autre' }[reunion.type] ?? reunion.type],
     ['Date', formatDateFr(reunion.date_reunion)],
-    ['Horaires', `${reunion.heure_debut.slice(0, 5)}${reunion.heure_fin ? ` → ${reunion.heure_fin.slice(0, 5)}` : ''}`],
-    ['Lieu', reunion.lieu ?? '—'],
-    ['Organisateur', reunion.organisateur ? `${reunion.organisateur.prenom} ${reunion.organisateur.nom}` : '—'],
+    ['Horaires', heureStr],
+    ['Lieu', reunion.lieu ?? '-'],
+    ['Organisateur', reunion.organisateur ? `${reunion.organisateur.prenom} ${reunion.organisateur.nom}` : '-'],
   ]
 
   infoRows.forEach(([label, val], i) => {
     const bg = i % 2 === 0 ? GRIS_CLAIR : ([255, 255, 255] as [number, number, number])
     doc.setFillColor(...bg)
-    doc.rect(marginL, y, contentW, 7, 'F')
+    doc.rect(marginL, y, contentW, ROW_H, 'F')
     doc.setTextColor(100, 116, 139)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text(label, marginL + 3, y + 4.5)
+    doc.setFont('times', 'normal')
+    doc.setFontSize(11)
+    doc.text(label, marginL + 3, y + 7.5)
     doc.setTextColor(30, 41, 59)
-    doc.setFont('helvetica', 'bold')
-    doc.text(val, marginL + 55, y + 4.5)
-    y += 7
+    doc.setFont('times', 'bold')
+    doc.text(val, marginL + 58, y + 7.5)
+    y += ROW_H
   })
 
-  y += 6
+  y += 8
 
   // ── II — PARTICIPANTS ──────────────────────────────────────────────────────
   if (reunion.participants && reunion.participants.length > 0) {
-    doc.setFillColor(...BLEU_PRIMAIRE)
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.roundedRect(marginL, y, contentW, 7, 1, 1, 'F')
-    doc.text('II  —  PARTICIPANTS', marginL + 3, y + 5)
-    y += 10
+    y = checkPage(doc, y, 50, pageH)
+    y = section(doc, 'II  -  LISTE DES PARTICIPANTS', y, marginL, contentW)
 
-    const presenceLabel: Record<string, string> = {
-      confirme: 'Présent(e)', absent: 'Absent(e)', excuse: 'Excusé(e)', invite: 'Invité(e)',
-    }
-    const presenceColor: Record<string, [number, number, number]> = {
-      confirme: [8, 80, 65], absent: [153, 27, 27], excuse: [146, 64, 14], invite: [30, 58, 95],
-    }
+    const parts = reunion.participants
+    const presidentPart  = parts.find((p) => p.role_seance === 'president')
+    const secretairePart = parts.find((p) => p.role_seance === 'secretaire')
+    const rolesIds = new Set([presidentPart?.id, secretairePart?.id].filter(Boolean))
+    const presents = parts.filter((p) => p.statut_presence === 'confirme' && !rolesIds.has(p.id))
+    const excuses  = parts.filter((p) => p.statut_presence === 'excuse')
 
-    reunion.participants.forEach((p, i) => {
-      const bg = i % 2 === 0 ? GRIS_CLAIR : ([255, 255, 255] as [number, number, number])
+    const renderRole = (label: string, p: typeof parts[0] | undefined, bg: [number, number, number]) => {
       doc.setFillColor(...bg)
-      doc.rect(marginL, y, contentW, 7, 'F')
-
+      doc.rect(marginL, y, contentW, ROW_H, 'F')
+      doc.setTextColor(100, 116, 139)
+      doc.setFont('times', 'normal')
+      doc.setFontSize(11)
+      doc.text(label, marginL + 3, y + 7.5)
       doc.setTextColor(30, 41, 59)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
-      doc.text(nomParticipant(p), marginL + 3, y + 4.5)
+      doc.setFont('times', 'bold')
+      doc.text(p ? nomAvecPoste(p) : 'Non designe', marginL + 58, y + 7.5)
+      y += ROW_H
+    }
 
-      if (p.utilisateur?.poste) {
-        doc.setTextColor(100, 116, 139)
-        doc.setFontSize(7)
-        doc.text(p.utilisateur.poste, marginL + 70, y + 4.5)
-      }
+    renderRole('President(e) de seance', presidentPart, GRIS_CLAIR)
+    renderRole('Secretaire de seance', secretairePart, [255, 255, 255])
 
-      const statLabel = presenceLabel[p.statut_presence] ?? p.statut_presence
-      const statColor = presenceColor[p.statut_presence] ?? [100, 116, 139]
-      doc.setTextColor(...statColor)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7)
-      doc.text(statLabel, pageW - marginR - 3, y + 4.5, { align: 'right' })
+    if (presents.length > 0) {
+      doc.setFillColor(232, 245, 240)
+      doc.rect(marginL, y, contentW, 8, 'F')
+      doc.setFont('times', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(8, 80, 65)
+      doc.text('Presents', marginL + 3, y + 5.5)
+      y += 8
 
-      y += 7
-    })
-    y += 6
+      presents.forEach((p, i) => {
+        const bg = i % 2 === 0 ? ([255, 255, 255] as [number, number, number]) : GRIS_CLAIR
+        doc.setFillColor(...bg)
+        doc.rect(marginL, y, contentW, ROW_H, 'F')
+        doc.setTextColor(30, 41, 59)
+        doc.setFont('times', 'normal')
+        doc.setFontSize(11)
+        doc.text(`- ${nomAvecPoste(p)}`, marginL + 6, y + 7.5)
+        y += ROW_H
+      })
+    }
+
+    if (excuses.length > 0) {
+      doc.setFillColor(254, 243, 199)
+      doc.rect(marginL, y, contentW, 8, 'F')
+      doc.setFont('times', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(146, 64, 14)
+      doc.text('Excuses', marginL + 3, y + 5.5)
+      y += 8
+
+      excuses.forEach((p, i) => {
+        const bg = i % 2 === 0 ? ([255, 255, 255] as [number, number, number]) : GRIS_CLAIR
+        doc.setFillColor(...bg)
+        doc.rect(marginL, y, contentW, ROW_H, 'F')
+        doc.setTextColor(30, 41, 59)
+        doc.setFont('times', 'normal')
+        doc.setFontSize(11)
+        doc.text(`- ${nomCourt(p)}`, marginL + 6, y + 7.5)
+        y += ROW_H
+      })
+    }
+
+    y += 8
   }
 
   // ── III — ORDRE DU JOUR ────────────────────────────────────────────────────
   if (reunion.points && reunion.points.length > 0) {
-    if (y > pageH - 60) { doc.addPage(); y = 18 }
-
-    doc.setFillColor(...BLEU_PRIMAIRE)
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.roundedRect(marginL, y, contentW, 7, 1, 1, 'F')
-    doc.text('III  —  ORDRE DU JOUR', marginL + 3, y + 5)
-    y += 10
+    y = checkPage(doc, y, 40, pageH)
+    y = section(doc, 'III  -  ORDRE DU JOUR', y, marginL, contentW)
 
     reunion.points.sort((a, b) => a.ordre - b.ordre).forEach((pt, i) => {
-      if (y > pageH - 25) { doc.addPage(); y = 18 }
+      const rowH = pt.description ? 17 : ROW_H
+      y = checkPage(doc, y, rowH + 2, pageH)
+
       const bg = i % 2 === 0 ? GRIS_CLAIR : ([255, 255, 255] as [number, number, number])
-      const statutIco = { a_traiter: '○', en_cours: '◑', traite: '●', reporte: '⊘' }[pt.statut] ?? '○'
       doc.setFillColor(...bg)
-      doc.rect(marginL, y, contentW, pt.description ? 12 : 7, 'F')
+      doc.rect(marginL, y, contentW, rowH, 'F')
+
+      const statutLabel = STATUT_ODJ_LABEL[pt.statut] ?? 'Inconnu'
+      const statutColor: Record<string, [number, number, number]> = {
+        a_traiter: [100, 116, 139],
+        en_cours:  [37, 99, 235],
+        traite:    [8, 80, 65],
+        reporte:   [146, 64, 14],
+      }
+      doc.setFont('times', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(...(statutColor[pt.statut] ?? ([100, 116, 139] as [number, number, number])))
+      doc.text(statutLabel, pageW - marginR - 3, y + 7.5, { align: 'right' })
 
       doc.setTextColor(30, 58, 95)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.text(`${i + 1}. ${pt.titre}  ${statutIco}`, marginL + 3, y + 5)
+      doc.setFont('times', 'bold')
+      doc.setFontSize(11)
+      const titreLines = doc.splitTextToSize(`${i + 1}. ${pt.titre}`, contentW - 38) as string[]
+      doc.text(titreLines[0], marginL + 3, y + 7.5)
 
       if (pt.description) {
         doc.setTextColor(100, 116, 139)
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(7)
-        const lines = doc.splitTextToSize(pt.description, contentW - 8) as string[]
-        doc.text(lines.slice(0, 1), marginL + 5, y + 9.5)
-        y += 12
-      } else {
-        y += 7
+        doc.setFont('times', 'normal')
+        doc.setFontSize(9)
+        const descLines = doc.splitTextToSize(pt.description, contentW - 8) as string[]
+        doc.text(descLines.slice(0, 1), marginL + 5, y + 13)
       }
+
+      y += rowH
     })
-    y += 6
+    y += 8
   }
 
-  // ── IV — RÉSUMÉ / FAITS ────────────────────────────────────────────────────
+  // ── IV — RÉSUMÉ ────────────────────────────────────────────────────────────
   if (cr.resume) {
-    if (y > pageH - 40) { doc.addPage(); y = 18 }
-
-    doc.setFillColor(...BLEU_PRIMAIRE)
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.roundedRect(marginL, y, contentW, 7, 1, 1, 'F')
-    doc.text('IV  —  RÉSUMÉ DES DISCUSSIONS', marginL + 3, y + 5)
-    y += 10
+    y = checkPage(doc, y, 35, pageH)
+    y = section(doc, 'IV  -  RESUME DES DISCUSSIONS', y, marginL, contentW)
 
     doc.setFillColor(...GRIS_CLAIR)
-    const resumeLines = doc.splitTextToSize(cr.resume, contentW - 6) as string[]
-    const resumeH = resumeLines.length * 5 + 4
+    const resumeLines = doc.splitTextToSize(cr.resume, contentW - 8) as string[]
+    const resumeH = resumeLines.length * 7 + 8
     doc.rect(marginL, y, contentW, resumeH, 'F')
     doc.setTextColor(30, 41, 59)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text(resumeLines, marginL + 3, y + 5)
-    y += resumeH + 6
+    doc.setFont('times', 'normal')
+    doc.setFontSize(11)
+    doc.text(resumeLines, marginL + 4, y + 7)
+    y += resumeH + 8
   }
 
   // ── V — DÉCISIONS ─────────────────────────────────────────────────────────
   if (cr.decisions && cr.decisions.length > 0) {
-    if (y > pageH - 40) { doc.addPage(); y = 18 }
-
-    doc.setFillColor(...VERT)
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.roundedRect(marginL, y, contentW, 7, 1, 1, 'F')
-    doc.text('V  —  DÉCISIONS PRISES', marginL + 3, y + 5)
-    y += 10
+    y = checkPage(doc, y, 35, pageH)
+    y = section(doc, 'V  -  DECISIONS PRISES', y, marginL, contentW, VERT)
 
     cr.decisions.forEach((d, i) => {
-      if (y > pageH - 20) { doc.addPage(); y = 18 }
-      const bg = i % 2 === 0 ? [232, 245, 232] as [number, number, number] : ([255, 255, 255] as [number, number, number])
-      const lines = doc.splitTextToSize(d, contentW - 10) as string[]
-      const h = lines.length * 5 + 4
+      y = checkPage(doc, y, 18, pageH)
+      const bg = i % 2 === 0 ? ([232, 245, 232] as [number, number, number]) : ([255, 255, 255] as [number, number, number])
+      const lines = doc.splitTextToSize(d, contentW - 14) as string[]
+      const h = lines.length * 7 + 6
       doc.setFillColor(...bg)
       doc.rect(marginL, y, contentW, h, 'F')
-
       doc.setFillColor(...VERT)
-      doc.circle(marginL + 5, y + h / 2, 1.5, 'F')
-
+      doc.circle(marginL + 5.5, y + h / 2, 2, 'F')
       doc.setTextColor(30, 41, 59)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
-      doc.text(lines, marginL + 10, y + 5)
+      doc.setFont('times', 'normal')
+      doc.setFontSize(11)
+      doc.text(lines, marginL + 12, y + 7)
       y += h
     })
-    y += 6
+    y += 8
   }
 
   // ── VI — PLAN D'ACTIONS ────────────────────────────────────────────────────
   if (cr.plan_actions && cr.plan_actions.length > 0) {
-    if (y > pageH - 50) { doc.addPage(); y = 18 }
+    y = checkPage(doc, y, 45, pageH)
+    y = section(doc, 'VI  -  PLAN D\'ACTIONS', y, marginL, contentW)
 
-    doc.setFillColor(...BLEU_PRIMAIRE)
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.roundedRect(marginL, y, contentW, 7, 1, 1, 'F')
-    doc.text('VI  —  PLAN D\'ACTIONS', marginL + 3, y + 5)
-    y += 10
-
-    const statutLabel: Record<string, string> = { a_faire: 'À faire', en_cours: 'En cours', fait: 'Fait' }
+    const statutLabel: Record<string, string> = { a_faire: 'A faire', en_cours: 'En cours', fait: 'Fait' }
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Action', 'Responsable', 'Échéance', 'Statut']],
+      head: [['#', 'Action', 'Responsable', 'Echeance', 'Statut']],
       body: cr.plan_actions.map((a: PointAction, i: number) => [
         i + 1,
         a.description,
         a.responsable,
-        a.echeance ? new Date(a.echeance).toLocaleDateString('fr-FR') : '—',
+        a.echeance ? new Date(a.echeance).toLocaleDateString('fr-FR') : '-',
         statutLabel[a.statut] ?? a.statut,
       ]),
       margin: { left: marginL, right: marginR },
-      styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      styles: { fontSize: 11, cellPadding: 4, font: 'times' },
+      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 11 },
       alternateRowStyles: { fillColor: [243, 244, 246] },
       columnStyles: {
         0: { cellWidth: 8, halign: 'center' },
         1: { cellWidth: 70 },
-        2: { cellWidth: 35 },
+        2: { cellWidth: 36 },
         3: { cellWidth: 22 },
-        4: { cellWidth: 25 },
+        4: { cellWidth: 26 },
       },
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 6
+    y = (doc as any).lastAutoTable.finalY + 8
   }
 
   // ── VII — OBSERVATIONS ────────────────────────────────────────────────────
   if (cr.observations) {
-    if (y > pageH - 30) { doc.addPage(); y = 18 }
+    y = checkPage(doc, y, 30, pageH)
+    y = section(doc, 'VII  -  OBSERVATIONS', y, marginL, contentW, [146, 64, 14])
 
-    doc.setFillColor(146, 64, 14)
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.roundedRect(marginL, y, contentW, 7, 1, 1, 'F')
-    doc.text('VII  —  OBSERVATIONS', marginL + 3, y + 5)
-    y += 10
-
-    const obsLines = doc.splitTextToSize(cr.observations, contentW - 6) as string[]
-    const obsH = obsLines.length * 5 + 4
+    const obsLines = doc.splitTextToSize(cr.observations, contentW - 8) as string[]
+    const obsH = obsLines.length * 7 + 8
     doc.setFillColor(254, 243, 199)
     doc.rect(marginL, y, contentW, obsH, 'F')
     doc.setTextColor(30, 41, 59)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text(obsLines, marginL + 3, y + 5)
-    y += obsH + 6
+    doc.setFont('times', 'normal')
+    doc.setFontSize(11)
+    doc.text(obsLines, marginL + 4, y + 7)
+    y += obsH + 8
   }
 
-  // ── SIGNATURES ────────────────────────────────────────────────────────────
-  if (y > pageH - 35) { doc.addPage(); y = 18 }
-  y = Math.max(y, pageH - 45)
+  // ── VIII — SIGNATURES ────────────────────────────────────────────────────
+  const participants = reunion.participants ?? []
+  const presidentPart  = participants.find((p) => p.role_seance === 'president')
+  const secretairePart = participants.find((p) => p.role_seance === 'secretaire')
 
+  const sigBlockH = 65
+  y = checkPage(doc, y, sigBlockH + SEC_H + 6, pageH)
+  y = section(doc, 'VIII  -  SIGNATURES', y, marginL, contentW, [71, 85, 105])
+
+  const halfW   = (contentW - 6) / 2
+  const sigX1   = marginL
+  const sigX2   = marginL + halfW + 6
+  const sigImgW = halfW - 8
+  const sigImgH = 32
+
+  // Cadre Secrétaire (gauche)
   doc.setDrawColor(200, 210, 220)
-  doc.line(marginL, y, pageW - marginR, y)
-  y += 6
+  doc.setLineWidth(0.4)
+  doc.roundedRect(sigX1, y, halfW, sigBlockH, 1, 1)
 
-  doc.setTextColor(100, 116, 139)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.text('Rédacteur du compte-rendu', marginL, y)
-  doc.text('Approbation', pageW / 2, y, { align: 'center' })
-  y += 12
-  doc.line(marginL, y, marginL + 60, y)
-  doc.line(pageW / 2 - 30, y, pageW / 2 + 30, y)
+  doc.setFont('times', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(30, 58, 95)
+  doc.text('Secretaire de seance', sigX1 + 4, y + 7.5)
 
-  // ── PIED DE PAGE (toutes les pages) ──────────────────────────────────────
+  if (secretairePart) {
+    doc.setFont('times', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(100, 116, 139)
+    doc.text(nomAvecPoste(secretairePart), sigX1 + 4, y + 14)
+  }
+
+  if (cr.signature_secretaire) {
+    try { doc.addImage(cr.signature_secretaire, 'PNG', sigX1 + 4, y + 17, sigImgW, sigImgH) }
+    catch { doc.setDrawColor(180, 190, 200); doc.line(sigX1 + 4, y + 48, sigX1 + halfW - 4, y + 48) }
+  } else {
+    doc.setDrawColor(180, 190, 200)
+    doc.line(sigX1 + 4, y + 48, sigX1 + halfW - 4, y + 48)
+    doc.setFont('times', 'italic')
+    doc.setFontSize(8)
+    doc.setTextColor(180, 190, 200)
+    doc.text('Signature', sigX1 + 4, y + 54)
+  }
+
+  // Cadre Président (droite)
+  doc.setDrawColor(200, 210, 220)
+  doc.roundedRect(sigX2, y, halfW, sigBlockH, 1, 1)
+
+  doc.setFont('times', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(30, 58, 95)
+  doc.text('President(e) de seance', sigX2 + 4, y + 7.5)
+
+  if (presidentPart) {
+    doc.setFont('times', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(100, 116, 139)
+    doc.text(nomAvecPoste(presidentPart), sigX2 + 4, y + 14)
+  }
+
+  if (cr.signature_president) {
+    try { doc.addImage(cr.signature_president, 'PNG', sigX2 + 4, y + 17, sigImgW, sigImgH) }
+    catch { doc.setDrawColor(180, 190, 200); doc.line(sigX2 + 4, y + 48, sigX2 + halfW - 4, y + 48) }
+    if (cr.approuve_par_president_le) {
+      doc.setFont('times', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(8, 80, 65)
+      doc.text(
+        `Approuve le ${new Date(cr.approuve_par_president_le).toLocaleDateString('fr-FR')}`,
+        sigX2 + 4,
+        y + sigBlockH - 4,
+      )
+    }
+  } else {
+    doc.setDrawColor(180, 190, 200)
+    doc.line(sigX2 + 4, y + 48, sigX2 + halfW - 4, y + 48)
+    doc.setFont('times', 'italic')
+    doc.setFontSize(8)
+    doc.setTextColor(180, 190, 200)
+    doc.text('Signature', sigX2 + 4, y + 54)
+  }
+
+  y += sigBlockH
+
+  // ── PIED DE PAGE ─────────────────────────────────────────────────────────
   const totalPages = doc.getNumberOfPages()
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p)
     doc.setFillColor(...BLEU_PRIMAIRE)
-    doc.rect(0, pageH - 10, pageW, 10, 'F')
+    doc.rect(0, pageH - 11, pageW, 11, 'F')
     doc.setTextColor(...BLEU_CLAIR)
-    doc.setFontSize(6.5)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`${entreprise.nom}  —  Compte-rendu de réunion  —  ${formatDateFr(reunion.date_reunion)}`, marginL, pageH - 4)
+    doc.setFontSize(8)
+    doc.setFont('times', 'normal')
+    doc.text(`${entreprise.nom}  -  Compte-rendu de reunion  -  ${formatDateFr(reunion.date_reunion)}`, marginL, pageH - 4)
     doc.text(`Page ${p} / ${totalPages}`, pageW - marginR, pageH - 4, { align: 'right' })
   }
 

@@ -37,31 +37,45 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
   const [actionLoading, setActionLoading] = useState(false)
   const [convocLoading, setConvocLoading] = useState(false)
 
-  const charger = useCallback(async () => {
-    try {
-      const data = await obtenirReunion(id)
-      setReunion(data)
-    } catch {
-      router.push('/dashboard/reunions')
-    } finally {
-      setLoading(false)
-    }
+  // Chargement initial — cancelled flag pour éviter la race condition React Strict Mode
+  useEffect(() => {
+    let cancelled = false
+    obtenirReunion(id)
+      .then((data) => { if (!cancelled) setReunion(data) })
+      .catch(() => { if (!cancelled) router.push('/dashboard/reunions') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [id, router])
 
-  const chargerCollabs = useCallback(async () => {
+  useEffect(() => {
     if (!utilisateur) return
-    const sb = createClient()
-    const { data } = await sb
-      .from('utilisateurs')
-      .select('*')
+    let cancelled = false
+    createClient()
+      .from('utilisateurs').select('*')
       .eq('entreprise_id', utilisateur.entreprise_id)
-      .eq('actif', true)
-      .order('prenom')
-    setCollaborateurs(data ?? [])
+      .eq('actif', true).order('prenom')
+      .then(({ data }) => { if (!cancelled) setCollaborateurs(data ?? []) })
+    return () => { cancelled = true }
   }, [utilisateur])
 
-  useEffect(() => { charger() }, [charger])
-  useEffect(() => { chargerCollabs() }, [chargerCollabs])
+  // Refetch ciblé participants (post-opération, garantit la cohérence DB)
+  const refreshParticipants = useCallback(async () => {
+    const { data } = await createClient()
+      .from('reunion_participants')
+      .select('*, utilisateur:utilisateurs(id, nom, prenom, photo_url, poste, email)')
+      .eq('reunion_id', id)
+    if (data) setReunion((r) => r ? { ...r, participants: data as ReunionParticipant[] } : r)
+  }, [id])
+
+  // Refetch ciblé points OdJ (post-opération)
+  const refreshPoints = useCallback(async () => {
+    const { data } = await createClient()
+      .from('reunion_points')
+      .select('*, responsable:utilisateurs(id, nom, prenom)')
+      .eq('reunion_id', id)
+      .order('ordre')
+    if (data) setReunion((r) => r ? { ...r, points: data as ReunionPoint[] } : r)
+  }, [id])
 
   // Realtime incrémental — mise à jour locale sans refetch complet
   useEffect(() => {
@@ -185,6 +199,7 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
   if (!reunion) return null
 
   const canEdit = ['patron', 'admin'].includes(utilisateur?.role ?? '')
+  const isLocked = reunion.statut === 'terminee' || reunion.statut === 'annulee'
   const currentParticipant = (reunion.participants ?? []).find((p) => p.utilisateur_id === utilisateur?.id)
   const isParticipant = !!currentParticipant
   const isSecretaireSeance = currentParticipant?.role_seance === 'secretaire'
@@ -343,27 +358,28 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
               collaborateurs={collaborateurs}
               participants={reunion.participants ?? []}
               onAjouterInterne={async (uid) => {
-                const p = await ajouterParticipantInterne(id, uid)
-                setReunion((r) => r ? { ...r, participants: [...(r.participants ?? []), p] } : r)
+                await ajouterParticipantInterne(id, uid)
+                await refreshParticipants()
               }}
               onAjouterExterne={async (nom, email) => {
-                const p = await ajouterParticipantExterne(id, nom, email)
-                setReunion((r) => r ? { ...r, participants: [...(r.participants ?? []), p] } : r)
+                await ajouterParticipantExterne(id, nom, email)
+                await refreshParticipants()
               }}
               onSupprimer={async (pid) => {
-                await supprimerParticipant(pid)
                 setReunion((r) => r ? { ...r, participants: (r.participants ?? []).filter((p) => p.id !== pid) } : r)
+                await supprimerParticipant(pid)
+                await refreshParticipants()
               }}
               onChangerPresence={async (pid, statut: StatutParticipant) => {
-                await mettreAJourPresence(pid, statut)
                 setReunion((r) => r ? {
                   ...r,
                   participants: (r.participants ?? []).map((p) => p.id === pid ? { ...p, statut_presence: statut } : p),
                 } : r)
+                await mettreAJourPresence(pid, statut)
+                await refreshParticipants()
               }}
               onDefinirRole={async (pid, role: RoleSeance | null) => {
                 if (role) {
-                  await assignerRoleSeance(id, pid, role)
                   setReunion((r) => r ? {
                     ...r,
                     participants: (r.participants ?? []).map((p) =>
@@ -372,18 +388,20 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
                       : p
                     ),
                   } : r)
+                  await assignerRoleSeance(id, pid, role)
                 } else {
                   const p = (reunion.participants ?? []).find((x) => x.id === pid)
                   if (p?.role_seance) {
-                    await assignerRoleSeance(id, null, p.role_seance)
                     setReunion((r) => r ? {
                       ...r,
                       participants: (r.participants ?? []).map((x) => x.id === pid ? { ...x, role_seance: null } : x),
                     } : r)
+                    await assignerRoleSeance(id, null, p.role_seance)
                   }
                 }
+                await refreshParticipants()
               }}
-              readOnly={!canEdit}
+              readOnly={!canEdit || isLocked}
             />
           )}
 
@@ -392,26 +410,20 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
               points={reunion.points ?? []}
               collaborateurs={collaborateurs}
               onAjouter={async (titre, desc, resp, duree) => {
-                const pt = await ajouterPoint(id, { titre, description: desc, responsable_id: resp, duree_estimee: duree }, (reunion.points?.length ?? 0))
-                setReunion((r) => r ? { ...r, points: [...(r.points ?? []), pt] } : r)
+                await ajouterPoint(id, { titre, description: desc, responsable_id: resp, duree_estimee: duree }, (reunion.points?.length ?? 0))
+                await refreshPoints()
               }}
               onModifier={async (pid, updates) => {
+                setReunion((r) => r ? { ...r, points: (r.points ?? []).map((p) => p.id === pid ? { ...p, ...updates } as ReunionPoint : p) } : r)
                 await modifierPoint(pid, updates)
-                if ('responsable_id' in updates) {
-                  // Refetch ciblé pour obtenir le join responsable
-                  const { data } = await createClient().from('reunion_points')
-                    .select('*, responsable:utilisateurs(id, nom, prenom)')
-                    .eq('id', pid).single()
-                  if (data) setReunion((r) => r ? { ...r, points: (r.points ?? []).map((p) => p.id === pid ? data as ReunionPoint : p) } : r)
-                } else {
-                  setReunion((r) => r ? { ...r, points: (r.points ?? []).map((p) => p.id === pid ? { ...p, ...updates } as ReunionPoint : p) } : r)
-                }
+                await refreshPoints()
               }}
               onSupprimer={async (pid) => {
-                await supprimerPoint(pid)
                 setReunion((r) => r ? { ...r, points: (r.points ?? []).filter((p) => p.id !== pid) } : r)
+                await supprimerPoint(pid)
+                await refreshPoints()
               }}
-              readOnly={!canEdit}
+              readOnly={!canEdit || isLocked}
             />
           )}
 
@@ -421,7 +433,7 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
               utilisateurId={utilisateur.id}
               points={reunion.points ?? []}
               collaborateurs={collaborateurs}
-              readOnly={(!isParticipant && !canEdit) || reunion.statut === 'annulee'}
+              readOnly={(!isParticipant && !canEdit) || isLocked}
             />
           )}
         </div>

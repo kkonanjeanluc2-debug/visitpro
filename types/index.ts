@@ -351,6 +351,9 @@ export interface CompteRendu {
   created_at: string
   redacteur?: Utilisateur
   reunion?: Reunion
+  signature_secretaire?: string | null
+  signature_president?: string | null
+  approuve_par_president_le?: string | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

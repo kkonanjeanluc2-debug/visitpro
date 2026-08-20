@@ -37,6 +37,7 @@ export type CreateCRInput = {
   decisions: string[]
   plan_actions: PointAction[]
   observations?: string
+  signature_secretaire?: string
 }
 
 // ── Réunions ──────────────────────────────────────────────────────────────────
@@ -279,6 +280,18 @@ export async function sauvegarderCompteRendu(reunionId: string, redacteurId: str
 
   if (error) throw error
   return data as CompteRendu
+}
+
+export async function approuverCompteRendu(reunionId: string, signaturePresident: string): Promise<void> {
+  const sb = createClient()
+  const { error } = await sb
+    .from('comptes_rendus')
+    .update({
+      signature_president: signaturePresident,
+      approuve_par_president_le: new Date().toISOString(),
+    })
+    .eq('reunion_id', reunionId)
+  if (error) throw error
 }
 
 export async function finaliserCompteRendu(reunionId: string): Promise<CompteRendu> {

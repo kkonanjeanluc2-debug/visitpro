@@ -69,7 +69,19 @@ export default function PreparationBoard({
     resetForm()
   }
 
-  // Realtime
+  // Chargement initial des préparations existantes
+  useEffect(() => {
+    let cancelled = false
+    createClient()
+      .from('reunion_preparations')
+      .select('*, auteur:utilisateurs(id, nom, prenom, photo_url)')
+      .eq('reunion_id', reunionId)
+      .order('created_at')
+      .then(({ data }) => { if (!cancelled && data) setItems(data as ReunionPreparation[]) })
+    return () => { cancelled = true }
+  }, [reunionId])
+
+  // Realtime — mises à jour en temps réel depuis d'autres utilisateurs
   useEffect(() => {
     const sb = createClient()
     const channel = sb
@@ -78,7 +90,7 @@ export default function PreparationBoard({
         event: '*', schema: 'public', table: 'reunion_preparations',
         filter: `reunion_id=eq.${reunionId}`,
       }, (payload) => {
-        if (payload.eventType === 'INSERT') setItems((p) => [...p, payload.new as ReunionPreparation])
+        if (payload.eventType === 'INSERT') setItems((p) => [...p.filter((i) => i.id !== (payload.new as ReunionPreparation).id), payload.new as ReunionPreparation])
         else if (payload.eventType === 'UPDATE') setItems((p) => p.map((i) => i.id === payload.new.id ? { ...i, ...payload.new } : i))
         else if (payload.eventType === 'DELETE') setItems((p) => p.filter((i) => i.id !== payload.old.id))
       })
@@ -118,7 +130,8 @@ export default function PreparationBoard({
       }
 
       const input: CreatePreparationInput = { type: formType, titre: formTitre.trim(), contenu, point_id: formPoint || undefined }
-      await ajouterPreparation(reunionId, utilisateurId, input)
+      const newItem = await ajouterPreparation(reunionId, utilisateurId, input)
+      setItems((p) => [...p.filter((i) => i.id !== newItem.id), newItem])
       resetForm()
       setShowForm(false)
     } finally {
@@ -127,10 +140,12 @@ export default function PreparationBoard({
   }
 
   const handleModifier = useCallback(async (id: string, statut: StatutPreparation) => {
+    setItems((p) => p.map((i) => i.id === id ? { ...i, statut } : i))
     await modifierPreparation(id, { statut })
   }, [])
 
   const handleSupprimer = useCallback(async (id: string) => {
+    setItems((p) => p.filter((i) => i.id !== id))
     await supprimerPreparation(id)
   }, [])
 
