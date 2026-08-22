@@ -170,6 +170,11 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
   }, [])
 
   const handleLogout = async () => {
+    await fetch('/api/auth/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'deconnexion' }),
+    }).catch(() => {})
     await supabase.auth.signOut()
     router.push('/login')
   }

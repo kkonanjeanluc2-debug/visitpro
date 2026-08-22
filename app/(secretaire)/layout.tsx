@@ -9,6 +9,7 @@ import EssaiExpire from '@/components/layout/EssaiExpire'
 import RdvProchainsBanner from '@/components/layout/RdvProchainsBanner'
 import { AuthProvider } from '@/contexts/AuthContext'
 import ThemeProvider from '@/components/providers/ThemeProvider'
+import AuthTracker from '@/components/layout/AuthTracker'
 
 export default async function SecretaireLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -81,6 +82,7 @@ export default async function SecretaireLayout({ children }: { children: React.R
           <main className="flex-1 overflow-y-auto pb-20 lg:pb-6">
             <AuthProvider utilisateur={utilisateur as never}>
               <ThemeProvider />
+              <AuthTracker userId={utilisateur.id} />
               {isExpire ? <EssaiExpire role={utilisateur.role} type={typeExpire} /> : children}
             </AuthProvider>
           </main>
