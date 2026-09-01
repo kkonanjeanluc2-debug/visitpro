@@ -40,6 +40,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [motDePasse, setMotDePasse] = useState('')
   const [motDePasseConfirm, setMotDePasseConfirm] = useState('')
+  const [cguAcceptees, setCguAcceptees] = useState(false)
 
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,6 +64,10 @@ export default function RegisterPage() {
       setErreur('Le mot de passe doit contenir au moins 8 caractères')
       return
     }
+    if (!cguAcceptees) {
+      setErreur('Vous devez accepter les Conditions Générales d\'Utilisation pour continuer')
+      return
+    }
 
     setLoading(true)
     try {
@@ -70,7 +75,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nomEntreprise, secteur, adresse, telephone, nom, prenom, email, motDePasse }),
+        body: JSON.stringify({ nomEntreprise, secteur, adresse, telephone, nom, prenom, email, motDePasse, cguAcceptees }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Une erreur est survenue')
@@ -214,7 +219,39 @@ export default function RegisterPage() {
                 required
               />
 
-              <Button type="submit" fullWidth size="lg" loading={loading}>
+              {/* Acceptation CGU */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={cguAcceptees}
+                  onChange={(e) => setCguAcceptees(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 accent-primary flex-shrink-0"
+                />
+                <span className="text-sm text-gray-600 leading-snug">
+                  J&apos;ai lu et j&apos;accepte les{' '}
+                  <Link
+                    href="/cgu"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary font-medium hover:underline"
+                  >
+                    Conditions Générales d&apos;Utilisation
+                  </Link>{' '}
+                  et la{' '}
+                  <Link
+                    href="/cgu#art-8"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary font-medium hover:underline"
+                  >
+                    Politique de confidentialité
+                  </Link>{' '}
+                  de VisitPro, notamment le traitement de mes données personnelles conformément à la loi ivoirienne n° 2013-450.
+                  <span className="text-red-500 ml-0.5">*</span>
+                </span>
+              </label>
+
+              <Button type="submit" fullWidth size="lg" loading={loading} disabled={!cguAcceptees}>
                 Créer mon espace VisitPro
               </Button>
             </form>

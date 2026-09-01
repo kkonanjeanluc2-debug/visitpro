@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   envoyerEmail, templateConfirmationRdv, templateRappelRdv,
   templateConvocationReunion, templateCompteRenduFinalise,
@@ -99,14 +100,33 @@ export async function POST(request: NextRequest) {
       const lien = `${base}/dashboard/reunions/${reunionId}`
       const nomEntreprise = (reunion.entreprise as { nom: string })?.nom ?? 'VisitPro'
 
+      const admin = createAdminClient()
       let envoyes = 0
-      for (const p of (reunion.participants ?? []) as Array<{ id: string; utilisateur?: { nom: string; prenom: string; email?: string } | null; nom_externe?: string; email_externe?: string; convocation_envoyee: boolean }>) {
+      const erreurs: string[] = []
+
+      type Participant = {
+        id: string
+        utilisateur_id?: string | null
+        utilisateur?: { nom: string; prenom: string; email?: string | null } | null
+        nom_externe?: string
+        email_externe?: string
+        convocation_envoyee: boolean
+      }
+
+      for (const p of (reunion.participants ?? []) as Participant[]) {
         if (p.convocation_envoyee) continue
-        const destinataireEmail = p.utilisateur?.email ?? p.email_externe
+
+        // Résoudre l'email : d'abord utilisateurs.email, sinon auth.users, sinon email_externe
+        let destinataireEmail = p.utilisateur?.email ?? p.email_externe ?? null
+        if (!destinataireEmail && p.utilisateur_id) {
+          const { data: authUser } = await admin.auth.admin.getUserById(p.utilisateur_id)
+          destinataireEmail = authUser?.user?.email ?? null
+        }
+        if (!destinataireEmail) continue
+
         const destinataireNom = p.utilisateur
           ? `${p.utilisateur.prenom} ${p.utilisateur.nom}`
           : (p.nom_externe ?? 'Participant')
-        if (!destinataireEmail) continue
 
         const tmpl = templateConvocationReunion({
           nomParticipant: destinataireNom,
@@ -120,10 +140,16 @@ export async function POST(request: NextRequest) {
           lienReunion: lien,
         })
         const result = await envoyerEmail({ to: destinataireEmail, toName: destinataireNom, sujet: tmpl.sujet, html: tmpl.html, texte: tmpl.texte })
-        if (result.success) envoyes++
+        if (result.success) {
+          envoyes++
+          // Marquer ce participant comme convoqué
+          await admin.from('reunion_participants').update({ convocation_envoyee: true }).eq('id', p.id)
+        } else {
+          erreurs.push(`${destinataireNom} : ${result.erreur}`)
+        }
       }
 
-      return NextResponse.json({ succes: true, envoyes })
+      return NextResponse.json({ succes: true, envoyes, erreurs })
     }
 
     // ── Compte-rendu finalisé ─────────────────────────────────────────────────

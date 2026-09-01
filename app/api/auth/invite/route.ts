@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { envoyerEmail, templateInvitationUtilisateur } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,6 +45,25 @@ export async function POST(request: NextRequest) {
       await admin.auth.admin.deleteUser(authData.user.id)
       return NextResponse.json({ erreur: profileError.message }, { status: 400 })
     }
+
+    // Récupérer le nom de l'entreprise pour l'email
+    const { data: entreprise } = await admin
+      .from('entreprises')
+      .select('nom')
+      .eq('id', entreprise_id)
+      .single()
+
+    const lienConnexion = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '') + '/login'
+    const tmpl = templateInvitationUtilisateur({
+      prenom: prenom.trim(),
+      nom: nom.trim(),
+      email: email.trim(),
+      motDePasse: mot_de_passe,
+      nomEntreprise: entreprise?.nom ?? 'VisitPro',
+      role,
+      lienConnexion,
+    })
+    await envoyerEmail({ to: email.trim(), toName: `${prenom} ${nom}`, sujet: tmpl.sujet, html: tmpl.html, texte: tmpl.texte })
 
     return NextResponse.json({ succes: true, user_id: authData.user.id })
   } catch (error) {

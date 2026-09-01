@@ -25,12 +25,13 @@ export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProp
   const mainItems =
     ['secretaire', 'admin'].includes(role)
       ? [
-          { href: '/secretaire',              label: n.home,     icon: HomeIcon     },
-          { href: '/secretaire/visites',      label: n.visits,   icon: UsersIcon    },
-          { href: '/secretaire/visiteurs',    label: n.visitors, icon: PersonIcon   },
-          { href: '/secretaire/rendez-vous',  label: n.rdv,      icon: CalendarIcon },
+          { href: '/secretaire',              label: n.home,      icon: HomeIcon     },
+          { href: '/secretaire/visites',      label: n.visits,    icon: UsersIcon    },
+          { href: '/secretaire/visiteurs',    label: n.visitors,  icon: PersonIcon   },
+          { href: '/secretaire/rendez-vous',  label: n.rdv,       icon: CalendarIcon },
+          { href: '/secretaire/reunions',     label: n.reunions,  icon: MeetingIcon  },
           ...(planInfo.messagerie ? [{ href: '/secretaire/messages', label: n.messages, icon: ChatIcon }] : []),
-          { href: '/secretaire/registre',     label: n.register, icon: DocumentIcon },
+          { href: '/secretaire/registre',     label: n.register,  icon: DocumentIcon },
         ]
       : [
           { href: '/dashboard',             label: n.home,          icon: GridIcon, badge: notifCount },
@@ -220,6 +221,13 @@ function DotsIcon({ className }: { className: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+    </svg>
+  )
+}
+function MeetingIcon({ className }: { className: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   )
 }

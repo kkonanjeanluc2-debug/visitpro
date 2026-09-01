@@ -384,3 +384,73 @@ export function templateCompteRenduFinalise(params: {
     texte: `Compte-rendu — ${titreReunion}\n\nBonjour ${nomParticipant},\n\nLe compte-rendu de la réunion "${titreReunion}" du ${dateReunion} est disponible : ${nbDecisions} décision(s), ${nbActions} action(s).\n\nVisitPro — ${nomEntreprise}`,
   }
 }
+
+export function templateInvitationUtilisateur(params: {
+  prenom: string
+  nom: string
+  email: string
+  motDePasse: string
+  nomEntreprise: string
+  role: string
+  lienConnexion: string
+}) {
+  const { prenom, nom, email, motDePasse, nomEntreprise, role, lienConnexion } = params
+  const roleLabel: Record<string, string> = {
+    secretaire: 'Secrétaire', collaborateur: 'Collaborateur', admin: 'Administrateur', patron: 'Patron',
+  }
+  return {
+    sujet: `Bienvenue sur VisitPro — Vos identifiants de connexion`,
+    html: `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
+    <div style="background:#1E3A5F;padding:24px 32px;text-align:center">
+      <div style="color:#93C5FD;font-size:13px;margin-bottom:6px">VisitPro</div>
+      <div style="color:#fff;font-size:20px;font-weight:500">Bienvenue ${prenom} 👋</div>
+      <div style="color:#93C5FD;font-size:13px;margin-top:6px">${nomEntreprise}</div>
+    </div>
+    <div style="padding:32px">
+      <p style="color:#333;font-size:15px;margin:0 0 16px">
+        Bonjour <strong>${prenom} ${nom}</strong>,
+      </p>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 24px">
+        Un compte VisitPro a été créé pour vous par votre administrateur chez <strong>${nomEntreprise}</strong>.<br>
+        Votre rôle : <strong>${roleLabel[role] ?? role}</strong>.
+      </p>
+
+      <div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:10px;padding:20px 24px;margin-bottom:28px">
+        <p style="color:#0c447c;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:0 0 14px">Vos identifiants de connexion</p>
+        <div style="margin-bottom:10px">
+          <span style="color:#64748b;font-size:12px;display:block;margin-bottom:2px">Email</span>
+          <span style="color:#1e3a5f;font-size:15px;font-weight:600;font-family:monospace">${email}</span>
+        </div>
+        <div>
+          <span style="color:#64748b;font-size:12px;display:block;margin-bottom:2px">Mot de passe temporaire</span>
+          <span style="color:#1e3a5f;font-size:15px;font-weight:600;font-family:monospace;background:#dbeafe;padding:4px 10px;border-radius:6px;display:inline-block">${motDePasse}</span>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-bottom:28px">
+        <a href="${lienConnexion}" style="display:inline-block;background:#1E3A5F;color:#fff;font-size:14px;font-weight:500;padding:12px 28px;border-radius:8px;text-decoration:none">
+          Se connecter à VisitPro
+        </a>
+      </div>
+
+      <div style="background:#fef9c3;border-left:4px solid #eab308;border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:20px">
+        <p style="color:#713f12;font-size:13px;margin:0">
+          <strong>Conseil :</strong> Changez votre mot de passe dès votre première connexion depuis votre profil.
+        </p>
+      </div>
+
+      <p style="color:#9ca3af;font-size:12px;margin:0;border-top:1px solid #f3f4f6;padding-top:16px">
+        Cet email a été envoyé automatiquement par VisitPro pour le compte de ${nomEntreprise}.<br>
+        Si vous n'attendiez pas ce message, contactez votre administrateur.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+    texte: `Bonjour ${prenom} ${nom},\n\nUn compte VisitPro a été créé pour vous chez ${nomEntreprise}.\n\nEmail : ${email}\nMot de passe : ${motDePasse}\n\nConnectez-vous ici : ${lienConnexion}\n\nChangez votre mot de passe après votre première connexion.\n\nVisitPro`,
+  }
+}

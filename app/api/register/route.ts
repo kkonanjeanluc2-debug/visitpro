@@ -5,10 +5,13 @@ export async function POST(request: NextRequest) {
   try {
     const admin = createAdminClient()
     const body = await request.json()
-    const { nomEntreprise, secteur, adresse, telephone, nom, prenom, email, motDePasse } = body
+    const { nomEntreprise, secteur, adresse, telephone, nom, prenom, email, motDePasse, cguAcceptees } = body
 
     if (!nomEntreprise || !email || !motDePasse || !nom || !prenom) {
       return NextResponse.json({ error: 'Champs obligatoires manquants' }, { status: 400 })
+    }
+    if (!cguAcceptees) {
+      return NextResponse.json({ error: 'L\'acceptation des CGU est obligatoire' }, { status: 400 })
     }
 
     const { data: entreprise, error: errEntreprise } = await admin
@@ -50,8 +53,11 @@ export async function POST(request: NextRequest) {
       entreprise_id: entreprise.id,
       nom: nom.trim(),
       prenom: prenom.trim(),
+      email: email.trim(),
       role: 'patron',
       actif: true,
+      cgu_acceptees_le: new Date().toISOString(),
+      cgu_version: '1.0',
     })
 
     if (errUser) {

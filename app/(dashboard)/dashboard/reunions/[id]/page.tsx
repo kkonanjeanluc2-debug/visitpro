@@ -168,19 +168,38 @@ export default function ReunionDetailPage({ params }: { params: { id: string } }
     if (!reunion) return
     setConvocLoading(true)
     try {
-      const participants = (reunion.participants ?? []).filter((p) => !p.convocation_envoyee)
-      if (participants.length === 0) { alert('Toutes les convocations ont déjà été envoyées'); return }
+      const aEnvoyer = (reunion.participants ?? []).filter((p) => !p.convocation_envoyee)
+      if (aEnvoyer.length === 0) { alert('Toutes les convocations ont déjà été envoyées'); return }
 
-      await fetch('/api/email', {
+      const res = await fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'convocation_reunion', reunionId: id }),
       })
-      await marquerConvocationEnvoyee(id)
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        alert(`Erreur lors de l'envoi : ${data.erreur ?? 'Erreur inconnue'}`)
+        return
+      }
+
+      const envoyes: number = data.envoyes ?? 0
+      const erreurs: string[] = data.erreurs ?? []
+
+      // Rafraîchir les participants depuis la DB (marqués au niveau du serveur)
       setReunion((r) => r ? {
         ...r,
-        participants: (r.participants ?? []).map((p) => ({ ...p, convocation_envoyee: true })),
+        participants: (r.participants ?? []).map((p) => {
+          const estEnvoye = aEnvoyer.some((a) => a.id === p.id)
+          return estEnvoye ? { ...p, convocation_envoyee: true } : p
+        }),
       } : r)
+
+      if (erreurs.length > 0) {
+        alert(`${envoyes} convocation(s) envoyée(s).\nÉchecs :\n${erreurs.join('\n')}`)
+      } else {
+        alert(`${envoyes} convocation(s) envoyée(s) avec succès.`)
+      }
     } finally {
       setConvocLoading(false)
     }

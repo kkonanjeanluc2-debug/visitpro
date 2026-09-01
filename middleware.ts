@@ -112,6 +112,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  if (pathname === '/cgu') {
+    return NextResponse.next()
+  }
+
   if (pathname === '/login' || pathname === '/register' || pathname === '/') {
     if (user) {
       const { data: utilisateur } = await supabase
