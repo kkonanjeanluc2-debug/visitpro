@@ -139,7 +139,8 @@ export default function VisiteForm({ entrepriseId, enregistrePar, siteId, onSucc
       .in('role', ['collaborateur', 'patron', 'admin'])
       .order('statut_dispo')
       .order('nom')
-    if (siteId) q = q.eq('site_id', siteId)
+    // admin et patron visibles quel que soit le site ; filtre site uniquement pour les collaborateurs
+    if (siteId) q = q.or(`site_id.eq.${siteId},role.in.(admin,patron)`)
 
     const { data, error } = await q
     if (error) console.error('Chargement collaborateurs:', error.message)
