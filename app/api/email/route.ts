@@ -11,8 +11,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { email, type, rdvId } = body
 
-    if (!email || !type) {
+    if (!type) {
       return NextResponse.json({ erreur: 'Paramètres manquants' }, { status: 400 })
+    }
+
+    // email obligatoire uniquement pour les types qui le nécessitent
+    const typesAvecEmail = ['test', 'confirmation_rdv', 'rappel_rdv']
+    if (typesAvecEmail.includes(type) && !email) {
+      return NextResponse.json({ erreur: 'Email manquant' }, { status: 400 })
     }
 
     // Email de test (depuis les paramètres admin)
