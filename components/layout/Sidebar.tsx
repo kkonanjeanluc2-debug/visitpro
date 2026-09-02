@@ -4,8 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Utilisateur, Plan } from '@/types'
-import { PLANS } from '@/types'
+import type { Utilisateur } from '@/types'
 import type { Translations } from '@/lib/translations'
 import Avatar from '@/components/ui/Avatar'
 import { libelleRole } from '@/lib/utils'
@@ -18,6 +17,7 @@ interface NavItem {
   labelKey: NavKey
   icon: React.ReactNode
   roles: string[]
+  featureSlug?: string
 }
 
 const navItems: NavItem[] = [
@@ -75,6 +75,7 @@ const navItems: NavItem[] = [
     href: '/secretaire/reunions',
     labelKey: 'reunions',
     roles: ['secretaire', 'admin'],
+    featureSlug: 'reunions',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -85,6 +86,7 @@ const navItems: NavItem[] = [
     href: '/secretaire/messages',
     labelKey: 'messages',
     roles: ['secretaire', 'admin'],
+    featureSlug: 'messagerie',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -125,6 +127,7 @@ const navItems: NavItem[] = [
     href: '/dashboard/reunions',
     labelKey: 'reunions',
     roles: ['collaborateur', 'patron'],
+    featureSlug: 'reunions',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -135,6 +138,7 @@ const navItems: NavItem[] = [
     href: '/dashboard/messages',
     labelKey: 'messages',
     roles: ['collaborateur', 'patron'],
+    featureSlug: 'messagerie',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -165,6 +169,7 @@ const navItems: NavItem[] = [
     href: '/rapports',
     labelKey: 'reports',
     roles: ['admin', 'patron'],
+    featureSlug: 'rapports',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -175,6 +180,7 @@ const navItems: NavItem[] = [
     href: '/display',
     labelKey: 'display',
     roles: ['admin', 'patron'],
+    featureSlug: 'display',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -197,6 +203,7 @@ const navItems: NavItem[] = [
 interface SidebarProps {
   utilisateur: Utilisateur
   collapsed?: boolean
+  fonctionnalites?: string[]
 }
 
 // Constantes géométriques (py-2.5 + leading-5 = 20+20 = 40px, space-y-1 = 4px gap, py-4 = 16px top)
@@ -204,14 +211,14 @@ const ITEM_H = 40
 const ITEM_GAP = 4
 const NAV_PT = 16
 
-export default function Sidebar({ utilisateur, collapsed = false }: SidebarProps) {
+export default function Sidebar({ utilisateur, collapsed = false, fonctionnalites = [] }: SidebarProps) {
   const pathname = usePathname()
   const supabase = createClient()
   const tr = useTrans()
   const isResponsableSite = utilisateur.permissions?.responsable_site === true && utilisateur.role === 'collaborateur'
-  const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
+  const fonctSet = new Set(fonctionnalites)
   const items = navItems.filter((item) => {
-    if ((item.href === '/dashboard/messages' || item.href === '/secretaire/messages') && !planInfo.messagerie) return false
+    if (item.featureSlug && !fonctSet.has(item.featureSlug)) return false
     if (item.roles.includes(utilisateur.role)) return true
     if (item.href === '/dashboard/stats' && (utilisateur.permissions?.voir_stats || isResponsableSite)) return true
     if (item.href === '/admin' && isResponsableSite) return true

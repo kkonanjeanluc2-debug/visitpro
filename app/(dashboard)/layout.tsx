@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getFonctionnalitesEntreprise } from '@/lib/fonctionnalites'
 import Sidebar from '@/components/layout/Sidebar'
 import BottomNav from '@/components/layout/BottomNav'
 import TopBar from '@/components/layout/TopBar'
@@ -28,6 +29,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!['collaborateur', 'patron', 'admin'].includes(utilisateur.role)) {
     redirect('/secretaire')
   }
+
+  const fonctionnalitesSet = await getFonctionnalitesEntreprise(
+    utilisateur.entreprise_id,
+    utilisateur.entreprise?.plan ?? 'starter'
+  )
+  const fonctionnalites = Array.from(fonctionnalitesSet)
 
   const { data: abonnement } = await supabase
     .from('abonnements')
@@ -67,7 +74,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       )}
 
       <div className="flex flex-1 min-h-0">
-        <Sidebar utilisateur={utilisateur} />
+        <Sidebar utilisateur={utilisateur} fonctionnalites={fonctionnalites} />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <TopBar utilisateur={utilisateur} />
@@ -90,7 +97,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </main>
         </div>
 
-        <BottomNav utilisateur={utilisateur} />
+        <BottomNav utilisateur={utilisateur} fonctionnalites={fonctionnalites} />
       </div>
     </div>
   )

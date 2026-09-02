@@ -3,22 +3,22 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import type { Utilisateur, Plan } from '@/types'
-import { PLANS } from '@/types'
+import type { Utilisateur } from '@/types'
 import { useTrans } from '@/hooks/useTrans'
 
 interface BottomNavProps {
   utilisateur: Utilisateur
   notifCount?: number
+  fonctionnalites?: string[]
 }
 
-export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProps) {
+export default function BottomNav({ utilisateur, notifCount = 0, fonctionnalites = [] }: BottomNavProps) {
   const pathname = usePathname()
   const role = utilisateur.role
   const [plusOpen, setPlusOpen] = useState(false)
-  const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
   const tr = useTrans()
   const n = tr.nav
+  const fonctSet = new Set(fonctionnalites)
 
   const peutVoirStats = role === 'patron' || role === 'admin' || utilisateur.permissions?.voir_stats
 
@@ -29,24 +29,25 @@ export default function BottomNav({ utilisateur, notifCount = 0 }: BottomNavProp
           { href: '/secretaire/visites',      label: n.visits,    icon: UsersIcon    },
           { href: '/secretaire/visiteurs',    label: n.visitors,  icon: PersonIcon   },
           { href: '/secretaire/rendez-vous',  label: n.rdv,       icon: CalendarIcon },
-          { href: '/secretaire/reunions',     label: n.reunions,  icon: MeetingIcon  },
-          ...(planInfo.messagerie ? [{ href: '/secretaire/messages', label: n.messages, icon: ChatIcon }] : []),
+          ...(fonctSet.has('reunions') ? [{ href: '/secretaire/reunions', label: n.reunions, icon: MeetingIcon }] : []),
+          ...(fonctSet.has('messagerie') ? [{ href: '/secretaire/messages', label: n.messages, icon: ChatIcon }] : []),
           { href: '/secretaire/registre',     label: n.register,  icon: DocumentIcon },
         ]
       : [
           { href: '/dashboard',             label: n.home,          icon: GridIcon, badge: notifCount },
           { href: '/dashboard/mes-visites', label: n.visits,        icon: UserIcon    },
           { href: '/dashboard/agenda',      label: n.appointments,  icon: CalendarIcon },
-          ...(planInfo.messagerie ? [{ href: '/dashboard/messages', label: n.messages, icon: ChatIcon }] : []),
+          ...(fonctSet.has('reunions') ? [{ href: '/dashboard/reunions', label: n.reunions, icon: MeetingIcon }] : []),
+          ...(fonctSet.has('messagerie') ? [{ href: '/dashboard/messages', label: n.messages, icon: ChatIcon }] : []),
           { href: '__plus__',               label: n.more,          icon: DotsIcon    },
         ]
 
   const plusItems = [
     ...(peutVoirStats ? [{ href: '/dashboard/stats', label: n.stats,     icon: ChartIcon    }] : []),
     { href: '/admin',    label: n.settings,  icon: SettingsIcon  },
-    { href: '/rapports', label: n.reports,   icon: ReportIcon    },
+    ...(fonctSet.has('rapports') ? [{ href: '/rapports', label: n.reports, icon: ReportIcon }] : []),
     { href: '/securite', label: n.blacklist, icon: ShieldIcon    },
-    { href: '/display',  label: n.display,   icon: DisplayIcon   },
+    ...(fonctSet.has('display') ? [{ href: '/display', label: n.display, icon: DisplayIcon }] : []),
   ]
 
   const isActive = (href: string) =>
