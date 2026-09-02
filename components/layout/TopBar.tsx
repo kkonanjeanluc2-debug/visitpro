@@ -52,6 +52,7 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
   const supabase = createClient()
 
   // ─── États édition profil ──────────────────────────────────────────────────
+  const [profilTab, setProfilTab] = useState<'profil' | 'securite'>('profil')
   const [editPrenom, setEditPrenom] = useState(utilisateur.prenom)
   const [editNom, setEditNom] = useState(utilisateur.nom)
   const [editPoste, setEditPoste] = useState(utilisateur.poste ?? '')
@@ -62,6 +63,13 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
   const [saveError, setSaveError] = useState('')
   const [saveOk, setSaveOk] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // ─── États sécurité (mot de passe) ─────────────────────────────────────────
+  const [nouveauMdp, setNouveauMdp] = useState('')
+  const [confirmMdp, setConfirmMdp] = useState('')
+  const [showMdp, setShowMdp] = useState(false)
+  const [savingMdp, setSavingMdp] = useState(false)
+  const [erreurMdp, setErreurMdp] = useState('')
+  const [succesMdp, setSuccesMdp] = useState(false)
 
   // ─── Messages panel ────────────────────────────────────────────────────────
   interface MessageThread {
@@ -82,7 +90,8 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
       ? '/secretaire/messages'
       : '/dashboard/messages'
 
-  const ouvrirProfil = () => {
+  const ouvrirProfil = (tab: 'profil' | 'securite' = 'profil') => {
+    setProfilTab(tab)
     setEditPrenom(utilisateur.prenom)
     setEditNom(utilisateur.nom)
     setEditPoste(utilisateur.poste ?? '')
@@ -91,8 +100,27 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
     setPreviewUrl(null)
     setSaveError('')
     setSaveOk(false)
+    setNouveauMdp('')
+    setConfirmMdp('')
+    setErreurMdp('')
+    setSuccesMdp(false)
     setProfileOpen(false)
     setProfilModalOpen(true)
+  }
+
+  const changerMotDePasse = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErreurMdp('')
+    setSuccesMdp(false)
+    if (nouveauMdp.length < 8) { setErreurMdp('Le mot de passe doit contenir au moins 8 caractères.'); return }
+    if (nouveauMdp !== confirmMdp) { setErreurMdp('Les mots de passe ne correspondent pas.'); return }
+    setSavingMdp(true)
+    const { error } = await supabase.auth.updateUser({ password: nouveauMdp })
+    setSavingMdp(false)
+    if (error) { setErreurMdp('Erreur : ' + error.message); return }
+    setSuccesMdp(true)
+    setNouveauMdp('')
+    setConfirmMdp('')
   }
 
   const uploadPhoto = async (file: File): Promise<string | null> => {
@@ -491,7 +519,7 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
                   </Link>
                 )}
                 <button
-                  onClick={ouvrirProfil}
+                  onClick={() => ouvrirProfil('profil')}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
@@ -500,6 +528,17 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
                     </svg>
                   </div>
                   Mon profil
+                </button>
+                <button
+                  onClick={() => ouvrirProfil('securite')}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  </div>
+                  Mot de passe
                 </button>
               </div>
 
@@ -532,17 +571,89 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setProfilModalOpen(false)} />
           <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col" style={{ maxHeight: 'min(90vh, 640px)' }}>
             {/* Header */}
-            <div className="flex-shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Mon profil</h2>
-              <button onClick={() => setProfilModalOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            <div className="flex-shrink-0 px-5 pt-4 pb-0 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-bold text-gray-900">
+                  {profilTab === 'profil' ? 'Mon profil' : 'Mot de passe'}
+                </h2>
+                <button onClick={() => setProfilModalOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex gap-1 -mx-1">
+                {(['profil', 'securite'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setProfilTab(t)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-colors ${
+                      profilTab === t
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {t === 'profil' ? 'Profil' : 'Sécurité'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Corps */}
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+
+              {/* ── Onglet Sécurité ── */}
+              {profilTab === 'securite' && (
+                <form onSubmit={changerMotDePasse} className="space-y-4">
+                  <p className="text-xs text-gray-500">Le nouveau mot de passe doit contenir au moins 8 caractères.</p>
+                  {[
+                    { label: 'Nouveau mot de passe', value: nouveauMdp, setter: setNouveauMdp },
+                    { label: 'Confirmer le mot de passe', value: confirmMdp, setter: setConfirmMdp },
+                  ].map(({ label, value, setter }) => (
+                    <div key={label}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                      <div className="relative">
+                        <input
+                          type={showMdp ? 'text' : 'password'}
+                          value={value}
+                          onChange={e => setter(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowMdp(s => !s)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showMdp ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.6 3.6m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {erreurMdp && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erreurMdp}</p>
+                  )}
+                  {succesMdp && (
+                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                      ✓ Mot de passe modifié avec succès !
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={savingMdp || !nouveauMdp || !confirmMdp}
+                    className="w-full py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {savingMdp ? 'Enregistrement…' : 'Changer le mot de passe'}
+                  </button>
+                </form>
+              )}
+
+              {/* ── Onglet Profil ── */}
+              {profilTab === 'profil' && <>
               {/* Avatar */}
               <div className="flex flex-col items-center gap-3">
                 <div className="relative">
@@ -640,24 +751,37 @@ export default function TopBar({ utilisateur, titre: titreProp }: TopBarProps) {
                   ✓ Profil mis à jour avec succès !
                 </p>
               )}
+              </>}
             </div>
 
-            {/* Footer */}
-            <div className="flex-shrink-0 px-5 pb-5 pt-2 flex gap-2 border-t border-gray-100">
-              <button
-                onClick={() => setProfilModalOpen(false)}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={sauvegarderProfil}
-                disabled={saving || saveOk}
-                className="flex-1 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60"
-              >
-                {saving ? 'Enregistrement…' : 'Enregistrer'}
-              </button>
-            </div>
+            {/* Footer — uniquement pour l'onglet profil */}
+            {profilTab === 'profil' && (
+              <div className="flex-shrink-0 px-5 pb-5 pt-2 flex gap-2 border-t border-gray-100">
+                <button
+                  onClick={() => setProfilModalOpen(false)}
+                  className="flex-1 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={sauvegarderProfil}
+                  disabled={saving || saveOk}
+                  className="flex-1 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60"
+                >
+                  {saving ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
+            )}
+            {profilTab === 'securite' && (
+              <div className="flex-shrink-0 px-5 pb-5 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => setProfilModalOpen(false)}
+                  className="w-full py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Fermer
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
