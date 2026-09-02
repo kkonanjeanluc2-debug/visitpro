@@ -274,20 +274,23 @@ export default function DashboardPage() {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleDecision = async (visiteId: string, decision: 'acceptee' | 'declinee', note?: string) => {
-    const updates: Record<string, unknown> = {
-      statut: decision, decision_par: utilisateur!.id,
-      decision_at: new Date().toISOString(), note_decision: note ?? null,
+    const visite = visitesEnAttente.find(v => v.id === visiteId)
+
+    const res = await fetch('/api/visites/decision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        visite_id: visiteId,
+        decision,
+        note: note ?? null,
+        heure_arrivee: visite?.heure_arrivee ?? null,
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      console.error('handleDecision error:', body.erreur)
+      return
     }
-    if (decision === 'acceptee') {
-      const now = new Date()
-      updates.heure_entree = now.toISOString()
-      const visite = visitesEnAttente.find(v => v.id === visiteId)
-      if (visite?.heure_arrivee) {
-        updates.duree_attente = Math.round((now.getTime() - new Date(visite.heure_arrivee).getTime()) / 60000)
-      }
-    }
-    const { error: errDecision } = await supabase.from('visites').update(updates).eq('id', visiteId)
-    if (errDecision) { console.error('handleDecision update error:', errDecision); return }
 
     // Signal instantané vers l'écran d'attente public
     const displayCh = supabase.channel(`display-${utilisateur!.entreprise_id}`, { config: { broadcast: { ack: false } } })
@@ -298,7 +301,6 @@ export default function DashboardPage() {
       }
     })
 
-    const visite = visitesEnAttente.find(v => v.id === visiteId)
     if (visite) {
       const { data: secs } = await supabase.from('utilisateurs').select('id')
         .eq('entreprise_id', utilisateur!.entreprise_id).eq('role', 'secretaire')

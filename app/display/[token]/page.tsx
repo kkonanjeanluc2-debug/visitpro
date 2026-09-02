@@ -51,6 +51,10 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
   const mountedRef = useRef(true)
   const chargerRef = useRef<() => void>(() => {})
   const abortRef = useRef<AbortController | null>(null)
+  const prevVisiteIdsRef = useRef<Set<string>>(new Set())
+  const initialisedRef = useRef(false)
+  const audioActifRef = useRef(false)
+  const [audioActif, setAudioActif] = useState(false)
 
   // Horloge
   useEffect(() => {
@@ -101,6 +105,26 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
         // FIFO strict : le plus ancien en tête de liste
         return (a.heure_arrivee ?? '').localeCompare(b.heure_arrivee ?? '')
       })
+      // Annoncer vocalement les nouveaux visiteurs
+      const newIds = new Set(sorted.map(v => v.id))
+      if (initialisedRef.current && audioActifRef.current && typeof window !== 'undefined' && window.speechSynthesis) {
+        for (const v of sorted) {
+          if (!prevVisiteIdsRef.current.has(v.id)) {
+            const nom = nomComplet(v.nom_visiteur, v.prenom_visiteur)
+            let texte = `Bienvenue, ${nom}.`
+            if (v.destinataire?.nom) {
+              const dest = nomComplet(v.destinataire.nom, v.destinataire.prenom)
+              texte += ` ${dest} va vous recevoir dans quelques instants.`
+            }
+            const utt = new SpeechSynthesisUtterance(texte)
+            utt.lang = 'fr-FR'
+            utt.rate = 0.92
+            window.speechSynthesis.speak(utt)
+          }
+        }
+      }
+      prevVisiteIdsRef.current = newIds
+      initialisedRef.current = true
       setVisites(sorted.slice(0, 12))
       setLastFetch(new Date().toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
     } catch (err) {
@@ -339,9 +363,32 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
         className="flex items-center justify-between px-8 py-3 flex-shrink-0"
         style={{ borderTop: `1px solid ${overlay}0.08)` }}
       >
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="opacity-30 text-xs" style={{ color: texte }}>En direct</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="opacity-30 text-xs" style={{ color: texte }}>En direct</span>
+          </div>
+          <button
+            onClick={() => {
+              audioActifRef.current = true
+              setAudioActif(true)
+              if (window.speechSynthesis) {
+                const utt = new SpeechSynthesisUtterance(' ')
+                utt.volume = 0
+                window.speechSynthesis.speak(utt)
+              }
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+            style={{
+              backgroundColor: audioActif ? `${overlay}0.12)` : `${overlay}0.06)`,
+              color: texte,
+              opacity: audioActif ? 0.8 : 0.35,
+              border: `1px solid ${overlay}${audioActif ? '0.20' : '0.10'})`,
+            }}
+            title={audioActif ? 'Annonces vocales actives' : 'Cliquer pour activer les annonces vocales'}
+          >
+            {audioActif ? '🔊' : '🔇'} <span>{audioActif ? 'Son actif' : 'Activer le son'}</span>
+          </button>
         </div>
         <div className="flex items-center gap-4">
           {pollErreurs > 0 && (
