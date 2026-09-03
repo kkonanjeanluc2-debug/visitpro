@@ -39,33 +39,51 @@ function formatHeure(iso: string) {
   return new Date(iso).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' })
 }
 
-// Élément audio global — évite les doublons (annule le précédent avant d'en jouer un nouveau)
+// Méthode TTS détectée une fois, réutilisée pour tous les appels suivants sans délai
+let methodeTTS: 'speech' | 'audio' | null = null
 let audioEnCours: HTMLAudioElement | null = null
 
-function jouerAudioTTS(texte: string) {
+function jouerAudioTTS(texte: string, essais = 2) {
   try {
     if (audioEnCours) { audioEnCours.pause(); audioEnCours = null }
-    const audio = new Audio(`/api/tts?q=${encodeURIComponent(texte)}`)
+    const audio = new Audio(`/api/tts?q=${encodeURIComponent(texte)}&_=${Date.now()}`)
     audioEnCours = audio
     audio.onended = () => { if (audioEnCours === audio) audioEnCours = null }
-    audio.play().catch(() => {})
+    audio.onerror = () => { if (essais > 0) setTimeout(() => jouerAudioTTS(texte, essais - 1), 800) }
+    audio.play().catch(() => { if (essais > 0) setTimeout(() => jouerAudioTTS(texte, essais - 1), 800) })
   } catch { /* */ }
 }
 
-// Synthèse vocale : tente Web Speech API, bascule sur audio si pas de réponse en 1,5 s
-// Le flag `done` garantit qu'une seule méthode joue (pas de double déclenchement)
-function parlerTTS(texte: string) {
-  let done = false
+function parlerAvecSpeech(texte: string) {
+  try {
+    const synth = window.speechSynthesis
+    synth.cancel()
+    const utt = new SpeechSynthesisUtterance(texte)
+    utt.rate = 0.92
+    const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
+    if (frVoix) { utt.voice = frVoix; utt.lang = 'fr-FR' }
+    utt.onerror = () => { methodeTTS = 'audio'; jouerAudioTTS(texte) }
+    synth.speak(utt)
+  } catch { methodeTTS = 'audio'; jouerAudioTTS(texte) }
+}
 
-  const fallback = () => {
+function parlerTTS(texte: string) {
+  // Méthode déjà connue → appel direct, zéro délai
+  if (methodeTTS === 'audio')  { jouerAudioTTS(texte); return }
+  if (methodeTTS === 'speech') { parlerAvecSpeech(texte); return }
+
+  // Premier appel : tester Web Speech, détecter la méthode qui marche
+  let done = false
+  const useFallback = () => {
     if (done) return
     done = true
+    methodeTTS = 'audio'
     jouerAudioTTS(texte)
   }
 
   try {
     const synth = window.speechSynthesis
-    if (!synth) { fallback(); return }
+    if (!synth) { useFallback(); return }
     synth.cancel()
 
     const doSpeak = () => {
@@ -74,10 +92,10 @@ function parlerTTS(texte: string) {
         utt.rate = 0.92
         const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
         if (frVoix) { utt.voice = frVoix; utt.lang = 'fr-FR' }
-        utt.onstart = () => { done = true }   // speech démarre → bloque le fallback
-        utt.onerror  = () => fallback()
+        utt.onstart = () => { done = true; methodeTTS = 'speech' }
+        utt.onerror  = () => useFallback()
         synth.speak(utt)
-      } catch { fallback() }
+      } catch { useFallback() }
     }
 
     const voices = synth.getVoices()
@@ -89,10 +107,9 @@ function parlerTTS(texte: string) {
       synth.addEventListener('voiceschanged', fire, { once: true })
       setTimeout(fire, 500)
     }
-  } catch { fallback(); return }
+  } catch { useFallback(); return }
 
-  // Si Web Speech ne démarre pas dans 1,5 s → fallback audio (une seule fois grâce à `done`)
-  setTimeout(fallback, 1500)
+  setTimeout(useFallback, 1500)
 }
 
 export default function DisplayPage({ params }: { params: { token: string } }) {
