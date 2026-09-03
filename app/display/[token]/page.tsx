@@ -55,6 +55,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
   const initialisedRef = useRef(false)
   const audioActifRef = useRef(false)
   const [audioActif, setAudioActif] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState<boolean | null>(null)
 
   // Horloge
   useEffect(() => {
@@ -76,6 +77,11 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     navigator.serviceWorker?.getRegistrations().then((regs) => {
       regs.forEach((reg) => reg.unregister())
     }).catch(() => {})
+  }, [])
+
+  // Détecter le support de la synthèse vocale
+  useEffect(() => {
+    setSpeechSupported(typeof window !== 'undefined' && 'speechSynthesis' in window && Boolean(window.speechSynthesis))
   }, [])
 
   // Chargement des données — POST pour éviter tout cache CDN
@@ -370,12 +376,16 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           </div>
           <button
             onClick={() => {
-              audioActifRef.current = true
-              setAudioActif(true)
-              if (window.speechSynthesis) {
-                const utt = new SpeechSynthesisUtterance(' ')
-                utt.volume = 0
+              const next = !audioActif
+              audioActifRef.current = next
+              setAudioActif(next)
+              if (next && window.speechSynthesis) {
+                const utt = new SpeechSynthesisUtterance('Son activé.')
+                utt.lang = 'fr-FR'
+                utt.rate = 0.92
                 window.speechSynthesis.speak(utt)
+              } else if (!next && window.speechSynthesis) {
+                window.speechSynthesis.cancel()
               }
             }}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
@@ -385,9 +395,9 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
               opacity: audioActif ? 0.8 : 0.35,
               border: `1px solid ${overlay}${audioActif ? '0.20' : '0.10'})`,
             }}
-            title={audioActif ? 'Annonces vocales actives' : 'Cliquer pour activer les annonces vocales'}
+            title={audioActif ? 'Désactiver les annonces vocales' : 'Activer les annonces vocales'}
           >
-            {audioActif ? '🔊' : '🔇'} <span>{audioActif ? 'Son actif' : 'Activer le son'}</span>
+            {audioActif ? '🔊' : '🔇'} <span>{audioActif ? 'Son actif' : 'Son coupé'}</span>
           </button>
         </div>
         <div className="flex items-center gap-4">
@@ -406,6 +416,68 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           </p>
         </div>
       </footer>
+
+      {/* ── OVERLAY ACTIVATION AUDIO ── */}
+      {speechSupported !== null && !audioActif && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 cursor-pointer"
+          style={{ backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)' }}
+          onClick={() => {
+            if (speechSupported && window.speechSynthesis) {
+              audioActifRef.current = true
+              setAudioActif(true)
+              const utt = new SpeechSynthesisUtterance('Son activé. Bienvenue.')
+              utt.lang = 'fr-FR'
+              utt.rate = 0.92
+              window.speechSynthesis.speak(utt)
+            } else {
+              setAudioActif(true)
+            }
+          }}
+        >
+          <div
+            className="text-center rounded-3xl"
+            style={{
+              padding: 'clamp(32px, 5vw, 80px) clamp(40px, 7vw, 120px)',
+              backgroundColor: fond,
+              border: `2px solid rgba(255,255,255,0.18)`,
+              maxWidth: '70vw',
+              boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div style={{ fontSize: 'clamp(60px, 8vw, 110px)', lineHeight: 1 }}>
+              {speechSupported ? '🔊' : '🔇'}
+            </div>
+            <p
+              className="font-bold leading-snug mt-6"
+              style={{ fontSize: 'clamp(20px, 2.8vw, 48px)', color: texte }}
+            >
+              {speechSupported
+                ? 'Toucher l\'écran pour activer les annonces vocales'
+                : 'Annonces vocales non disponibles sur cet appareil'}
+            </p>
+            <p
+              className="mt-4 opacity-55 leading-relaxed"
+              style={{ fontSize: 'clamp(13px, 1.5vw, 24px)', color: texte }}
+            >
+              {speechSupported
+                ? 'Les visiteurs seront annoncés à haute voix à leur arrivée'
+                : 'Cliquer pour continuer sans annonces vocales'}
+            </p>
+            <div
+              className="mt-8 inline-flex items-center gap-3 rounded-2xl font-semibold"
+              style={{
+                padding: 'clamp(12px, 1.5vw, 20px) clamp(24px, 3vw, 48px)',
+                backgroundColor: speechSupported ? '#22c55e' : '#6b7280',
+                color: '#fff',
+                fontSize: 'clamp(14px, 1.6vw, 26px)',
+              }}
+            >
+              {speechSupported ? '▶ Activer le son' : '→ Continuer'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
