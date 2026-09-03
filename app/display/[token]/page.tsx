@@ -55,7 +55,6 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
   const initialisedRef = useRef(false)
   const audioActifRef = useRef(false)
   const [audioActif, setAudioActif] = useState(false)
-  const [speechSupported, setSpeechSupported] = useState<boolean | null>(null)
 
   // Horloge
   useEffect(() => {
@@ -79,10 +78,6 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
     }).catch(() => {})
   }, [])
 
-  // Détecter le support de la synthèse vocale
-  useEffect(() => {
-    setSpeechSupported(typeof window !== 'undefined' && 'speechSynthesis' in window && Boolean(window.speechSynthesis))
-  }, [])
 
   // Chargement des données — POST pour éviter tout cache CDN
   const charger = useCallback(async () => {
@@ -418,20 +413,20 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       </footer>
 
       {/* ── OVERLAY ACTIVATION AUDIO ── */}
-      {speechSupported !== null && !audioActif && (
+      {!audioActif && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 cursor-pointer"
           style={{ backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)' }}
           onClick={() => {
-            if (speechSupported && window.speechSynthesis) {
-              audioActifRef.current = true
-              setAudioActif(true)
+            audioActifRef.current = true
+            setAudioActif(true)
+            try {
               const utt = new SpeechSynthesisUtterance('Son activé. Bienvenue.')
               utt.lang = 'fr-FR'
               utt.rate = 0.92
               window.speechSynthesis.speak(utt)
-            } else {
-              setAudioActif(true)
+            } catch {
+              // speechSynthesis non disponible sur cet appareil — on continue sans audio
             }
           }}
         >
@@ -445,35 +440,29 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
               boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
             }}
           >
-            <div style={{ fontSize: 'clamp(60px, 8vw, 110px)', lineHeight: 1 }}>
-              {speechSupported ? '🔊' : '🔇'}
-            </div>
+            <div style={{ fontSize: 'clamp(60px, 8vw, 110px)', lineHeight: 1 }}>🔊</div>
             <p
               className="font-bold leading-snug mt-6"
               style={{ fontSize: 'clamp(20px, 2.8vw, 48px)', color: texte }}
             >
-              {speechSupported
-                ? 'Toucher l\'écran pour activer les annonces vocales'
-                : 'Annonces vocales non disponibles sur cet appareil'}
+              Toucher l&apos;écran pour activer les annonces vocales
             </p>
             <p
               className="mt-4 opacity-55 leading-relaxed"
               style={{ fontSize: 'clamp(13px, 1.5vw, 24px)', color: texte }}
             >
-              {speechSupported
-                ? 'Les visiteurs seront annoncés à haute voix à leur arrivée'
-                : 'Cliquer pour continuer sans annonces vocales'}
+              Les visiteurs seront annoncés à haute voix à leur arrivée
             </p>
             <div
               className="mt-8 inline-flex items-center gap-3 rounded-2xl font-semibold"
               style={{
                 padding: 'clamp(12px, 1.5vw, 20px) clamp(24px, 3vw, 48px)',
-                backgroundColor: speechSupported ? '#22c55e' : '#6b7280',
+                backgroundColor: '#22c55e',
                 color: '#fff',
                 fontSize: 'clamp(14px, 1.6vw, 26px)',
               }}
             >
-              {speechSupported ? '▶ Activer le son' : '→ Continuer'}
+              ▶ Activer le son
             </div>
           </div>
         </div>
