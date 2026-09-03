@@ -39,23 +39,62 @@ function formatHeure(iso: string) {
   return new Date(iso).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' })
 }
 
-// Méthode TTS détectée une fois, réutilisée pour tous les appels suivants sans délai
-let methodeTTS: 'speech' | 'audio' | null = null
-let audioEnCours: HTMLAudioElement | null = null
+// ── Audio state (module-level pour persister entre les rendus) ────────────
+// AudioContext déverrouillé lors du geste utilisateur → peut lire sans geste ensuite
+let audioCtx: AudioContext | null = null
+let sourceEnCours: AudioBufferSourceNode | null = null
 let retryTimeout: ReturnType<typeof setTimeout> | null = null
+let methodeTTS: 'speech' | 'audio' | null = null
 
-function jouerAudioTTS(texte: string, essais = 2) {
-  // Annuler tout retry en attente (texte précédent) pour ne pas l'entendre après le nouveau
-  if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null }
+// Appeler une seule fois depuis un geste utilisateur (clic) pour déverrouiller l'audio
+function deverrouillerAudio() {
+  if (audioCtx) return
   try {
-    if (audioEnCours) { audioEnCours.pause(); audioEnCours = null }
-    const audio = new Audio(`/api/tts?q=${encodeURIComponent(texte)}&_=${Date.now()}`)
-    audioEnCours = audio
-    audio.onended = () => { if (audioEnCours === audio) audioEnCours = null }
-    const retry = () => { if (essais > 0) retryTimeout = setTimeout(() => jouerAudioTTS(texte, essais - 1), 800) }
-    audio.onerror = retry
-    audio.play().catch(retry)
+    type AnyAC = typeof AudioContext
+    const AC: AnyAC | undefined =
+      (window as unknown as Record<string, AnyAC>).AudioContext ??
+      (window as unknown as Record<string, AnyAC>).webkitAudioContext
+    if (!AC) return
+    audioCtx = new AC()
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
   } catch { /* */ }
+}
+
+// Joue un MP3 depuis notre proxy TTS — utilise AudioContext si disponible (pas de restriction autoplay)
+async function jouerAudioTTS(texte: string, essais = 2) {
+  if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null }
+  const retry = () => {
+    if (essais > 0) retryTimeout = setTimeout(() => jouerAudioTTS(texte, essais - 1), 1000)
+  }
+  try {
+    // Couper la lecture précédente
+    if (sourceEnCours) { try { sourceEnCours.stop() } catch { /* */ } sourceEnCours = null }
+
+    const url = `/api/tts?q=${encodeURIComponent(texte)}&_=${Date.now()}`
+    const res = await fetch(url)
+    if (!res.ok) { retry(); return }
+    const buf = await res.arrayBuffer()
+
+    if (audioCtx) {
+      // AudioContext déverrouillé → aucune restriction autoplay
+      if (audioCtx.state === 'suspended') await audioCtx.resume()
+      const decoded = await audioCtx.decodeAudioData(buf)
+      const src = audioCtx.createBufferSource()
+      sourceEnCours = src
+      src.buffer = decoded
+      src.connect(audioCtx.destination)
+      src.onended = () => { if (sourceEnCours === src) sourceEnCours = null }
+      src.start(0)
+    } else {
+      // Fallback : Blob URL évite le cache et les restrictions de certains navigateurs
+      const blob = new Blob([buf], { type: 'audio/mpeg' })
+      const blobUrl = URL.createObjectURL(blob)
+      const audio = new Audio(blobUrl)
+      audio.onended = () => URL.revokeObjectURL(blobUrl)
+      audio.onerror = () => { URL.revokeObjectURL(blobUrl); retry() }
+      audio.play().catch(retry)
+    }
+  } catch { retry() }
 }
 
 function parlerAvecSpeech(texte: string) {
@@ -72,24 +111,18 @@ function parlerAvecSpeech(texte: string) {
 }
 
 function parlerTTS(texte: string) {
-  // Méthode déjà connue → appel direct, zéro délai
   if (methodeTTS === 'audio')  { jouerAudioTTS(texte); return }
   if (methodeTTS === 'speech') { parlerAvecSpeech(texte); return }
 
-  // Premier appel : tester Web Speech, détecter la méthode qui marche
+  // Premier appel : détecter la méthode qui marche sur cet appareil
   let done = false
   const useFallback = () => {
-    if (done) return
-    done = true
-    methodeTTS = 'audio'
-    jouerAudioTTS(texte)
+    if (done) return; done = true; methodeTTS = 'audio'; jouerAudioTTS(texte)
   }
-
   try {
     const synth = window.speechSynthesis
     if (!synth) { useFallback(); return }
     synth.cancel()
-
     const doSpeak = () => {
       try {
         const utt = new SpeechSynthesisUtterance(texte)
@@ -101,18 +134,14 @@ function parlerTTS(texte: string) {
         synth.speak(utt)
       } catch { useFallback() }
     }
-
     const voices = synth.getVoices()
-    if (voices.length > 0) {
-      doSpeak()
-    } else {
+    if (voices.length > 0) { doSpeak() } else {
       let fired = false
       const fire = () => { if (!fired) { fired = true; doSpeak() } }
       synth.addEventListener('voiceschanged', fire, { once: true })
       setTimeout(fire, 500)
     }
   } catch { useFallback(); return }
-
   setTimeout(useFallback, 1500)
 }
 
@@ -449,6 +478,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
               audioActifRef.current = next
               setAudioActif(next)
               if (next) {
+                deverrouillerAudio()
                 parlerTTS('Son activé.')
               } else {
                 try { window.speechSynthesis?.cancel() } catch { /* */ }
@@ -489,6 +519,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           className="fixed inset-0 flex items-center justify-center z-50 cursor-pointer"
           style={{ backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)' }}
           onClick={() => {
+            deverrouillerAudio()
             audioActifRef.current = true
             setAudioActif(true)
             parlerTTS('Son activé. Bienvenue.')
