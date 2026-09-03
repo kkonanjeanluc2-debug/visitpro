@@ -214,7 +214,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       })
       // Annoncer vocalement les nouveaux visiteurs
       const newIds = new Set(sorted.map(v => v.id))
-      if (initialisedRef.current && audioActifRef.current && typeof window !== 'undefined' && window.speechSynthesis) {
+      if (initialisedRef.current && audioActifRef.current) {
         for (const v of sorted) {
           if (!prevVisiteIdsRef.current.has(v.id)) {
             const nom = nomComplet(v.nom_visiteur, v.prenom_visiteur)
