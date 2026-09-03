@@ -39,25 +39,33 @@ function formatHeure(iso: string) {
   return new Date(iso).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' })
 }
 
-// Lecture audio via notre proxy TTS (Google Translate) — fallback universel
+// Élément audio global — évite les doublons (annule le précédent avant d'en jouer un nouveau)
+let audioEnCours: HTMLAudioElement | null = null
+
 function jouerAudioTTS(texte: string) {
   try {
+    if (audioEnCours) { audioEnCours.pause(); audioEnCours = null }
     const audio = new Audio(`/api/tts?q=${encodeURIComponent(texte)}`)
+    audioEnCours = audio
+    audio.onended = () => { if (audioEnCours === audio) audioEnCours = null }
     audio.play().catch(() => {})
   } catch { /* */ }
 }
 
 // Synthèse vocale : tente Web Speech API, bascule sur audio si pas de réponse en 1,5 s
+// Le flag `done` garantit qu'une seule méthode joue (pas de double déclenchement)
 function parlerTTS(texte: string) {
-  let started = false
+  let done = false
 
-  const audioFallback = () => {
-    if (!started) jouerAudioTTS(texte)
+  const fallback = () => {
+    if (done) return
+    done = true
+    jouerAudioTTS(texte)
   }
 
   try {
     const synth = window.speechSynthesis
-    if (!synth) { jouerAudioTTS(texte); return }
+    if (!synth) { fallback(); return }
     synth.cancel()
 
     const doSpeak = () => {
@@ -66,10 +74,10 @@ function parlerTTS(texte: string) {
         utt.rate = 0.92
         const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
         if (frVoix) { utt.voice = frVoix; utt.lang = 'fr-FR' }
-        utt.onstart = () => { started = true }
-        utt.onerror  = () => { audioFallback() }
+        utt.onstart = () => { done = true }   // speech démarre → bloque le fallback
+        utt.onerror  = () => fallback()
         synth.speak(utt)
-      } catch { audioFallback() }
+      } catch { fallback() }
     }
 
     const voices = synth.getVoices()
@@ -81,10 +89,10 @@ function parlerTTS(texte: string) {
       synth.addEventListener('voiceschanged', fire, { once: true })
       setTimeout(fire, 500)
     }
-  } catch { audioFallback(); return }
+  } catch { fallback(); return }
 
-  // Si Web Speech ne démarre pas dans 1,5 s → audio fallback
-  setTimeout(audioFallback, 1500)
+  // Si Web Speech ne démarre pas dans 1,5 s → fallback audio (une seule fois grâce à `done`)
+  setTimeout(fallback, 1500)
 }
 
 export default function DisplayPage({ params }: { params: { token: string } }) {
