@@ -39,6 +39,48 @@ function formatHeure(iso: string) {
   return new Date(iso).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Synthèse vocale robuste : attend le chargement des voix, réessaie sans langue si échec
+function parlerTTS(texte: string) {
+  try {
+    const synth = window.speechSynthesis
+    if (!synth) return
+    synth.cancel()
+
+    const doSpeak = (avecLang: boolean) => {
+      try {
+        const utt = new SpeechSynthesisUtterance(texte)
+        utt.rate = 0.92
+        if (avecLang) {
+          utt.lang = 'fr-FR'
+          // Choisir une voix si disponible, sinon laisser le navigateur décider
+          const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
+          if (frVoix) utt.voice = frVoix
+        }
+        utt.onerror = () => {
+          // Si la tentative avec lang échoue, réessayer sans contrainte de langue
+          if (avecLang) setTimeout(() => doSpeak(false), 100)
+        }
+        synth.speak(utt)
+      } catch {
+        if (avecLang) setTimeout(() => doSpeak(false), 100)
+      }
+    }
+
+    const voices = synth.getVoices()
+    if (voices.length > 0) {
+      doSpeak(true)
+    } else {
+      // Attendre que les voix se chargent (certains navigateurs TV sont lents)
+      let done = false
+      const fire = () => { if (!done) { done = true; doSpeak(true) } }
+      synth.addEventListener('voiceschanged', fire, { once: true })
+      setTimeout(fire, 500) // fallback si voiceschanged ne se déclenche pas
+    }
+  } catch {
+    // speechSynthesis indisponible ou bloqué
+  }
+}
+
 export default function DisplayPage({ params }: { params: { token: string } }) {
   const token = params.token
 
@@ -117,10 +159,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
               const dest = nomComplet(v.destinataire.nom, v.destinataire.prenom)
               texte += ` ${dest} va vous recevoir dans quelques instants.`
             }
-            const utt = new SpeechSynthesisUtterance(texte)
-            utt.lang = 'fr-FR'
-            utt.rate = 0.92
-            window.speechSynthesis.speak(utt)
+            parlerTTS(texte)
           }
         }
       }
@@ -374,13 +413,10 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
               const next = !audioActif
               audioActifRef.current = next
               setAudioActif(next)
-              if (next && window.speechSynthesis) {
-                const utt = new SpeechSynthesisUtterance('Son activé.')
-                utt.lang = 'fr-FR'
-                utt.rate = 0.92
-                window.speechSynthesis.speak(utt)
-              } else if (!next && window.speechSynthesis) {
-                window.speechSynthesis.cancel()
+              if (next) {
+                parlerTTS('Son activé.')
+              } else {
+                try { window.speechSynthesis?.cancel() } catch { /* */ }
               }
             }}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
@@ -420,14 +456,7 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
           onClick={() => {
             audioActifRef.current = true
             setAudioActif(true)
-            try {
-              const utt = new SpeechSynthesisUtterance('Son activé. Bienvenue.')
-              utt.lang = 'fr-FR'
-              utt.rate = 0.92
-              window.speechSynthesis.speak(utt)
-            } catch {
-              // speechSynthesis non disponible sur cet appareil — on continue sans audio
-            }
+            parlerTTS('Son activé. Bienvenue.')
           }}
         >
           <div
