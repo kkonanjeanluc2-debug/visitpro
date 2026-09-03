@@ -39,46 +39,52 @@ function formatHeure(iso: string) {
   return new Date(iso).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' })
 }
 
-// Synthèse vocale robuste : attend le chargement des voix, réessaie sans langue si échec
+// Lecture audio via notre proxy TTS (Google Translate) — fallback universel
+function jouerAudioTTS(texte: string) {
+  try {
+    const audio = new Audio(`/api/tts?q=${encodeURIComponent(texte)}`)
+    audio.play().catch(() => {})
+  } catch { /* */ }
+}
+
+// Synthèse vocale : tente Web Speech API, bascule sur audio si pas de réponse en 1,5 s
 function parlerTTS(texte: string) {
+  let started = false
+
+  const audioFallback = () => {
+    if (!started) jouerAudioTTS(texte)
+  }
+
   try {
     const synth = window.speechSynthesis
-    if (!synth) return
+    if (!synth) { jouerAudioTTS(texte); return }
     synth.cancel()
 
-    const doSpeak = (avecLang: boolean) => {
+    const doSpeak = () => {
       try {
         const utt = new SpeechSynthesisUtterance(texte)
         utt.rate = 0.92
-        if (avecLang) {
-          utt.lang = 'fr-FR'
-          // Choisir une voix si disponible, sinon laisser le navigateur décider
-          const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
-          if (frVoix) utt.voice = frVoix
-        }
-        utt.onerror = () => {
-          // Si la tentative avec lang échoue, réessayer sans contrainte de langue
-          if (avecLang) setTimeout(() => doSpeak(false), 100)
-        }
+        const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
+        if (frVoix) { utt.voice = frVoix; utt.lang = 'fr-FR' }
+        utt.onstart = () => { started = true }
+        utt.onerror  = () => { audioFallback() }
         synth.speak(utt)
-      } catch {
-        if (avecLang) setTimeout(() => doSpeak(false), 100)
-      }
+      } catch { audioFallback() }
     }
 
     const voices = synth.getVoices()
     if (voices.length > 0) {
-      doSpeak(true)
+      doSpeak()
     } else {
-      // Attendre que les voix se chargent (certains navigateurs TV sont lents)
-      let done = false
-      const fire = () => { if (!done) { done = true; doSpeak(true) } }
+      let fired = false
+      const fire = () => { if (!fired) { fired = true; doSpeak() } }
       synth.addEventListener('voiceschanged', fire, { once: true })
-      setTimeout(fire, 500) // fallback si voiceschanged ne se déclenche pas
+      setTimeout(fire, 500)
     }
-  } catch {
-    // speechSynthesis indisponible ou bloqué
-  }
+  } catch { audioFallback(); return }
+
+  // Si Web Speech ne démarre pas dans 1,5 s → audio fallback
+  setTimeout(audioFallback, 1500)
 }
 
 export default function DisplayPage({ params }: { params: { token: string } }) {
