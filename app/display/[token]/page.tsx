@@ -42,15 +42,19 @@ function formatHeure(iso: string) {
 // Méthode TTS détectée une fois, réutilisée pour tous les appels suivants sans délai
 let methodeTTS: 'speech' | 'audio' | null = null
 let audioEnCours: HTMLAudioElement | null = null
+let retryTimeout: ReturnType<typeof setTimeout> | null = null
 
 function jouerAudioTTS(texte: string, essais = 2) {
+  // Annuler tout retry en attente (texte précédent) pour ne pas l'entendre après le nouveau
+  if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null }
   try {
     if (audioEnCours) { audioEnCours.pause(); audioEnCours = null }
     const audio = new Audio(`/api/tts?q=${encodeURIComponent(texte)}&_=${Date.now()}`)
     audioEnCours = audio
     audio.onended = () => { if (audioEnCours === audio) audioEnCours = null }
-    audio.onerror = () => { if (essais > 0) setTimeout(() => jouerAudioTTS(texte, essais - 1), 800) }
-    audio.play().catch(() => { if (essais > 0) setTimeout(() => jouerAudioTTS(texte, essais - 1), 800) })
+    const retry = () => { if (essais > 0) retryTimeout = setTimeout(() => jouerAudioTTS(texte, essais - 1), 800) }
+    audio.onerror = retry
+    audio.play().catch(retry)
   } catch { /* */ }
 }
 
