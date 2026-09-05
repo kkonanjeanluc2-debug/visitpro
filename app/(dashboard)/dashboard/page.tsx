@@ -35,8 +35,6 @@ export default function DashboardPage() {
   const [loading,          setLoading]          = useState(true)
   const [collaborateurs,   setCollaborateurs]   = useState<Utilisateur[]>([])
   const [sites,            setSites]            = useState<Site[]>([])
-  const [siteDisplayToken, setSiteDisplayToken] = useState<string>('')
-  const [siteDisplayCopied, setSiteDisplayCopied] = useState(false)
 
   // Charger depuis le cache avant le premier paint (client uniquement)
   const initKey = `dash:${utilisateur?.entreprise_id}:${utilisateur?.site_id ?? ''}:today`
@@ -255,12 +253,6 @@ export default function DashboardPage() {
       .then(({ data }) => { setSites(data ?? []); queryCache.set(key, data ?? []) })
   }, [utilisateur?.id])
 
-  // Token display du site — pour les collaborateurs ayant un site assigné
-  useEffect(() => {
-    if (!utilisateur?.site_id || ['patron', 'admin'].includes(utilisateur.role)) return
-    supabase.from('sites').select('display_token').eq('id', utilisateur.site_id).single()
-      .then(({ data }) => { if (data?.display_token) setSiteDisplayToken(data.display_token) })
-  }, [utilisateur?.site_id])
 
   // Collaborateurs pour redirection (avec cache)
   useEffect(() => {
@@ -419,44 +411,6 @@ export default function DashboardPage() {
       </div>
 
       <KpiGrid stats={stats} loading={loading} />
-
-      {/* Widget écran d'accueil du site — visible uniquement pour les collaborateurs avec un site */}
-      {siteDisplayToken && !['patron', 'admin'].includes(utilisateur.role) && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Écran d&apos;accueil de mon site</p>
-              <p className="text-xs text-gray-500">Affiche les visiteurs enregistrés pour votre site</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/display/${siteDisplayToken}`
-                navigator.clipboard.writeText(url)
-                setSiteDisplayCopied(true)
-                setTimeout(() => setSiteDisplayCopied(false), 2000)
-              }}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors text-gray-700"
-            >
-              {siteDisplayCopied ? '✓ Copié' : 'Copier le lien'}
-            </button>
-            <a
-              href={`/display/${siteDisplayToken}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-            >
-              Ouvrir l&apos;écran →
-            </a>
-          </div>
-        </div>
-      )}
 
       {utilisateur && ['patron', 'collaborateur'].includes(utilisateur.role) && (
         <ReunionsWidget entrepriseId={utilisateur.entreprise_id} />

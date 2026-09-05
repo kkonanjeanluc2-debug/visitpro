@@ -48,7 +48,21 @@ async function handleDisplay(token: string) {
     if (!ent) {
       return NextResponse.json({ error: 'not_found' }, { status: 404, headers: NO_CACHE_HEADERS })
     }
-    entreprise = { ...ent, nom: `${ent.nom} — ${site.nom}` }
+
+    // Utiliser les couleurs du site si définies, sinon celles de l'entreprise
+    const { data: siteCfg } = await admin
+      .from('sites')
+      .select('display_couleur_fond, display_couleur_texte, display_message')
+      .eq('id', siteId)
+      .single()
+
+    entreprise = {
+      ...ent,
+      nom: `${ent.nom} — ${site.nom}`,
+      display_couleur_fond:  siteCfg?.display_couleur_fond  ?? ent.display_couleur_fond,
+      display_couleur_texte: siteCfg?.display_couleur_texte ?? ent.display_couleur_texte,
+      display_message:       siteCfg?.display_message       ?? ent.display_message,
+    }
   } else {
     // Token d'entreprise (admin) — affiche tous les visiteurs de l'entreprise
     const { data: ent } = await admin

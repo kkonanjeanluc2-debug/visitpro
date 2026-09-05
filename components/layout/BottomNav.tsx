@@ -47,7 +47,8 @@ export default function BottomNav({ utilisateur, notifCount = 0, fonctionnalites
     { href: '/admin',    label: n.settings,  icon: SettingsIcon  },
     ...(fonctSet.has('rapports') ? [{ href: '/rapports', label: n.reports, icon: ReportIcon }] : []),
     { href: '/securite', label: n.blacklist, icon: ShieldIcon    },
-    ...(fonctSet.has('display') ? [{ href: '/display', label: n.display, icon: DisplayIcon }] : []),
+    ...(fonctSet.has('display') && ['admin', 'patron'].includes(role) ? [{ href: '/display', label: n.display, icon: DisplayIcon }] : []),
+    ...(fonctSet.has('display') && role === 'collaborateur' && utilisateur.site_id ? [{ href: '/dashboard/display', label: n.display, icon: DisplayIcon }] : []),
   ]
 
   const isActive = (href: string) =>
