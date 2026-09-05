@@ -30,6 +30,7 @@ export default function NouvelleReunionPage() {
       description: data.description || undefined,
       entreprise_id: utilisateur.entreprise_id,
       organisateur_id: utilisateur.id,
+      site_id: utilisateur.site_id ?? null,
     })
     router.push(`/dashboard/reunions/${reunion.id}`)
   }, [utilisateur, router])

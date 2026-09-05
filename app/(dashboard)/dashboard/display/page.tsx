@@ -40,7 +40,21 @@ export default function CollabDisplayPage() {
       .select('id, nom, display_token, display_couleur_fond, display_couleur_texte, display_message')
       .eq('id', utilisateur.site_id)
       .single()
-      .then(({ data }) => { if (data) setSite(data as SiteConfig) })
+      .then(({ data }) => {
+        if (data) {
+          setSite(data as SiteConfig)
+        } else {
+          // Fallback si les colonnes n'existent pas encore (migration en attente)
+          setSite({
+            id: utilisateur.site_id!,
+            nom: (utilisateur.site as unknown as { nom: string })?.nom ?? 'Mon site',
+            display_token: null,
+            display_couleur_fond: '#1E3A5F',
+            display_couleur_texte: '#FFFFFF',
+            display_message: 'Bienvenue ! Veuillez patienter, nous vous recevons dans un instant.',
+          })
+        }
+      })
   }, [utilisateur?.site_id])
 
   if (!utilisateur) return null

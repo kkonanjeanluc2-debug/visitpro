@@ -25,7 +25,7 @@ export default function ReunionsSecretairePage() {
   const charger = useCallback(async () => {
     if (!utilisateur) return
     const sb = createClient()
-    const { data } = await sb
+    let q = sb
       .from('reunions')
       .select(`
         *,
@@ -35,6 +35,11 @@ export default function ReunionsSecretairePage() {
         compte_rendu:comptes_rendus(id, statut)
       `)
       .eq('entreprise_id', utilisateur.entreprise_id)
+
+    // La secrétaire voit uniquement les réunions de son site
+    if (utilisateur.site_id) q = q.eq('site_id', utilisateur.site_id)
+
+    const { data } = await q
       .order('date_reunion', { ascending: false })
       .order('heure_debut', { ascending: true })
 

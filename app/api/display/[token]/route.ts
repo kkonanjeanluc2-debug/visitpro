@@ -50,11 +50,12 @@ async function handleDisplay(token: string) {
     }
 
     // Utiliser les couleurs du site si définies, sinon celles de l'entreprise
+    // Lire les surcharges du site (les colonnes peuvent ne pas exister si migration en attente)
     const { data: siteCfg } = await admin
       .from('sites')
       .select('display_couleur_fond, display_couleur_texte, display_message')
       .eq('id', siteId)
-      .single()
+      .maybeSingle()
 
     entreprise = {
       ...ent,

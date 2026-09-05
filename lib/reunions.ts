@@ -15,6 +15,7 @@ export type CreateReunionInput = {
   description?: string
   entreprise_id: string
   organisateur_id: string
+  site_id?: string | null
 }
 
 export type CreatePointInput = {
@@ -42,9 +43,9 @@ export type CreateCRInput = {
 
 // ── Réunions ──────────────────────────────────────────────────────────────────
 
-export async function listerReunions(entrepriseId: string): Promise<Reunion[]> {
+export async function listerReunions(entrepriseId: string, siteId?: string | null): Promise<Reunion[]> {
   const sb = createClient()
-  const { data, error } = await sb
+  let q = sb
     .from('reunions')
     .select(`
       *,
@@ -54,6 +55,10 @@ export async function listerReunions(entrepriseId: string): Promise<Reunion[]> {
       compte_rendu:comptes_rendus(id, statut)
     `)
     .eq('entreprise_id', entrepriseId)
+
+  if (siteId) q = q.eq('site_id', siteId)
+
+  const { data, error } = await q
     .order('date_reunion', { ascending: true })
     .order('heure_debut', { ascending: true })
 

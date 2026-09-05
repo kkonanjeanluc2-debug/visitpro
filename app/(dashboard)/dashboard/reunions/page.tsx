@@ -27,8 +27,10 @@ export default function ReunionsPage() {
 
   const charger = useCallback(async () => {
     if (!utilisateur) return
+    // Collaborateurs : filtrer par leur site. Admin/patron : toutes les réunions
+    const siteId = !['patron', 'admin'].includes(utilisateur.role) ? utilisateur.site_id : null
     try {
-      const data = await listerReunions(utilisateur.entreprise_id)
+      const data = await listerReunions(utilisateur.entreprise_id, siteId)
       setReunions(data)
     } catch (err) {
       console.error('Erreur chargement réunions:', err)
