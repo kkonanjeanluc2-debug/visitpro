@@ -14,6 +14,12 @@ interface DisplayConfig {
   display_token: string
 }
 
+interface SiteDisplay {
+  id: string
+  nom: string
+  display_token: string | null
+}
+
 const COULEURS_FOND = [
   { label: 'Bleu marine (défaut)', value: '#1E3A5F' },
   { label: 'Anthracite', value: '#1F2937' },
@@ -33,6 +39,8 @@ export default function DisplayConfigPage() {
     display_couleur_texte: '#FFFFFF',
     display_token: '',
   })
+  const [sites, setSites] = useState<SiteDisplay[]>([])
+  const [siteCopied, setSiteCopied] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -44,9 +52,15 @@ export default function DisplayConfigPage() {
       .select('display_message, display_couleur_fond, display_couleur_texte, display_token')
       .eq('id', utilisateur.entreprise_id)
       .single()
-      .then(({ data }) => {
-        if (data) setConfig(data as DisplayConfig)
-      })
+      .then(({ data }) => { if (data) setConfig(data as DisplayConfig) })
+
+    supabase
+      .from('sites')
+      .select('id, nom, display_token')
+      .eq('entreprise_id', utilisateur.entreprise_id)
+      .eq('actif', true)
+      .order('nom')
+      .then(({ data }) => { setSites((data ?? []) as SiteDisplay[]) })
   }, [utilisateur?.entreprise_id])
 
   const sauvegarder = async () => {
@@ -78,6 +92,28 @@ export default function DisplayConfigPage() {
       const { token } = await res.json()
       if (token) setConfig((c) => ({ ...c, display_token: token }))
     }
+  }
+
+  const regenererTokenSite = async (siteId: string) => {
+    if (!confirm('Régénérer le lien de ce site ? L\'ancien lien ne fonctionnera plus.')) return
+    const res = await fetch('/api/display/regenerer-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site_id: siteId }),
+    })
+    if (res.ok) {
+      const { token } = await res.json()
+      if (token) {
+        setSites(prev => prev.map(s => s.id === siteId ? { ...s, display_token: token } : s))
+      }
+    }
+  }
+
+  const copierLienSite = (token: string) => {
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/display/${token}`
+    navigator.clipboard.writeText(url)
+    setSiteCopied(token)
+    setTimeout(() => setSiteCopied(''), 2000)
   }
 
   const urlDisplay = config.display_token
@@ -261,6 +297,62 @@ export default function DisplayConfigPage() {
           </div>
         </div>
       </div>
+
+      {/* Écrans par site */}
+      {sites.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Écrans par site</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Chaque site dispose d&apos;un lien indépendant qui n&apos;affiche que les visiteurs enregistrés pour ce site.
+            Ce lien est visible dans le dashboard du collaborateur responsable du site.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {sites.map(site => {
+              const urlSite = site.display_token
+                ? `${typeof window !== 'undefined' ? window.location.origin : ''}/display/${site.display_token}`
+                : ''
+              return (
+                <Card key={site.id}>
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-gray-900 truncate">{site.nom}</p>
+                      <a
+                        href={urlSite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex-shrink-0"
+                      >
+                        Ouvrir →
+                      </a>
+                    </div>
+                    {urlSite && (
+                      <div className="flex gap-2">
+                        <input
+                          readOnly
+                          value={urlSite}
+                          className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-600 focus:outline-none min-w-0"
+                        />
+                        <button
+                          onClick={() => copierLienSite(site.display_token!)}
+                          className="px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/90 transition-colors flex-shrink-0"
+                        >
+                          {siteCopied === site.display_token ? '✓' : 'Copier'}
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => regenererTokenSite(site.id)}
+                      className="text-xs text-red-400 hover:text-red-600 hover:underline"
+                    >
+                      Régénérer le lien de ce site
+                    </button>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

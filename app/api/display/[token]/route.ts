@@ -23,29 +23,65 @@ async function handleDisplay(token: string) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const { data: entreprise } = await admin
-    .from('entreprises')
-    .select('id, nom, logo_url, display_message, display_couleur_fond, display_couleur_texte')
+  // Chercher d'abord dans les sites (token de site, écran propre à un site)
+  const { data: site } = await admin
+    .from('sites')
+    .select('id, entreprise_id, nom')
     .eq('display_token', token)
     .single()
 
-  if (!entreprise) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404, headers: NO_CACHE_HEADERS })
+  let entrepriseId: string
+  let siteId: string | null = null
+  let entreprise: { id: string; nom: string; logo_url?: string; display_message: string; display_couleur_fond: string; display_couleur_texte: string } | null = null
+
+  if (site) {
+    // Token de site — affiche uniquement les visiteurs de ce site
+    entrepriseId = site.entreprise_id
+    siteId = site.id
+
+    const { data: ent } = await admin
+      .from('entreprises')
+      .select('id, nom, logo_url, display_message, display_couleur_fond, display_couleur_texte')
+      .eq('id', entrepriseId)
+      .single()
+
+    if (!ent) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404, headers: NO_CACHE_HEADERS })
+    }
+    entreprise = { ...ent, nom: `${ent.nom} — ${site.nom}` }
+  } else {
+    // Token d'entreprise (admin) — affiche tous les visiteurs de l'entreprise
+    const { data: ent } = await admin
+      .from('entreprises')
+      .select('id, nom, logo_url, display_message, display_couleur_fond, display_couleur_texte')
+      .eq('display_token', token)
+      .single()
+
+    if (!ent) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404, headers: NO_CACHE_HEADERS })
+    }
+    entreprise = ent
+    entrepriseId = ent.id
   }
 
   const todayUTC = new Date().toISOString().split('T')[0]
 
-  // Requête 1 : visites du jour en_attente — sans JOIN pour éviter toute exclusion de ligne
-  const { data: visitesData, error: visitesError } = await admin
+  // Visites du jour en attente
+  let q = admin
     .from('visites')
     .select('id, nom_visiteur, prenom_visiteur, organisation_visiteur, statut, niveau_urgence, ordre_file, heure_arrivee, temps_attente_estime, created_at, destinataire_id')
-    .eq('entreprise_id', entreprise.id)
+    .eq('entreprise_id', entrepriseId)
     .in('statut', ['en_attente'])
     .gte('created_at', `${todayUTC}T00:00:00Z`)
     .order('created_at', { ascending: true })
     .limit(50)
 
-  // Requête 2 : noms des destinataires — séparée pour ne pas bloquer les visites
+  // Filtrer par site si c'est un écran de site
+  if (siteId) q = q.eq('site_id', siteId)
+
+  const { data: visitesData, error: visitesError } = await q
+
+  // Noms des destinataires
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const destinataireIds = Array.from(new Set((visitesData ?? []).map((v: any) => v.destinataire_id).filter(Boolean)))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,9 +104,7 @@ async function handleDisplay(token: string) {
     destinataire: v.destinataire_id ? (destinataireMap[v.destinataire_id] ?? null) : null,
   }))
 
-  console.log(`[display] ${entreprise.nom} | visites=${visites.length} | err=${visitesError?.message ?? 'none'}`)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  visites.forEach((v: any) => console.log(`  - ${v.nom_visiteur} | statut=${v.statut} | arrivee=${v.heure_arrivee}`))
+  console.log(`[display] ${entreprise.nom} | site=${siteId ?? 'global'} | visites=${visites.length} | err=${visitesError?.message ?? 'none'}`)
 
   return NextResponse.json(
     { entreprise, visites, _ts: Date.now() },
@@ -78,12 +112,10 @@ async function handleDisplay(token: string) {
   )
 }
 
-// GET : utilisé par les anciens clients
 export async function GET(_req: Request, { params }: { params: { token: string } }) {
   return handleDisplay(params.token)
 }
 
-// POST : utilisé par le display page — POST n'est jamais mis en cache par aucun CDN
 export async function POST(_req: Request, { params }: { params: { token: string } }) {
   return handleDisplay(params.token)
 }
