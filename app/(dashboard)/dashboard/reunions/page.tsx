@@ -25,7 +25,13 @@ export default function ReunionsPage() {
   const [filtre, setFiltre] = useState<Filtre>('a_venir')
   const [recherche, setRecherche] = useState('')
   const [sites, setSites] = useState<Site[]>([])
-  const [siteSelectionne, setSiteSelectionne] = useState<string>('')
+  const [siteSelectionne, setSiteSelectionneRaw] = useState<string>(() => {
+    try { return sessionStorage.getItem('vp_dash_site') ?? '' } catch { return '' }
+  })
+  const setSiteSelectionne = useCallback((val: string) => {
+    try { val ? sessionStorage.setItem('vp_dash_site', val) : sessionStorage.removeItem('vp_dash_site') } catch {}
+    setSiteSelectionneRaw(val)
+  }, [])
 
   const isPrimaire = ['patron', 'admin'].includes(utilisateur?.role ?? '')
   const isResponsableSite = utilisateur?.role === 'collaborateur' && utilisateur?.permissions?.responsable_site === true

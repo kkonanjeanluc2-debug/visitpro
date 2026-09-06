@@ -56,7 +56,13 @@ export default function DashboardPage() {
   const [periode,         setPeriode]         = useState<Periode>('today')
   const [dateDebut,       setDateDebut]       = useState('')
   const [dateFin,         setDateFin]         = useState('')
-  const [siteSelectionne, setSiteSelectionne] = useState<string>('')
+  const [siteSelectionne, setSiteSelectionneRaw] = useState<string>(() => {
+    try { return sessionStorage.getItem('vp_dash_site') ?? '' } catch { return '' }
+  })
+  const setSiteSelectionne = useCallback((val: string) => {
+    try { val ? sessionStorage.setItem('vp_dash_site', val) : sessionStorage.removeItem('vp_dash_site') } catch {}
+    setSiteSelectionneRaw(val)
+  }, [])
   const [redirVisite,     setRedirVisite]     = useState<Visite | null>(null)
   const [vueFile,         setVueFile]         = useState(false)
   const [nouveauDest,     setNouveauDest]     = useState('')
