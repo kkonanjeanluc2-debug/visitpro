@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRendezVous } from '@/hooks/useRendezVous'
+import { useSiteFilter } from '@/hooks/useSiteFilter'
 import AgendaJour from '@/components/secretaire/AgendaJour'
 import Card, { CardHeader, CardTitle } from '@/components/ui/Card'
 import { ConfirmModal } from '@/components/ui/Modal'
@@ -15,11 +16,13 @@ export default function AgendaPage() {
   const [rdvAnnuler, setRdvAnnuler] = useState<string | null>(null)
   const [loadingAction, setLoadingAction] = useState(false)
 
+  const { siteId } = useSiteFilter()
+  const isPrimaire = ['patron', 'admin'].includes(utilisateur?.role ?? '')
   const isResponsableSite = utilisateur?.permissions?.responsable_site === true && utilisateur?.role === 'collaborateur'
   const { rendezVous, loading, recharger } = useRendezVous(utilisateur?.entreprise_id ?? null, {
     date: dateSelectionnee,
-    destinataireId: ['patron', 'admin'].includes(utilisateur?.role ?? '') || isResponsableSite ? undefined : utilisateur?.id,
-    siteId: utilisateur?.site_id ?? undefined,
+    destinataireId: isPrimaire || isResponsableSite ? undefined : utilisateur?.id,
+    siteId: isPrimaire ? (siteId ?? utilisateur?.site_id ?? undefined) : (utilisateur?.site_id ?? undefined),
   })
 
   const dateLabel = new Date(dateSelectionnee + 'T00:00:00').toLocaleDateString('fr-CI', {

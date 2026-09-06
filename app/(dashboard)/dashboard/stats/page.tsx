@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
+import { useSiteFilter } from '@/hooks/useSiteFilter'
 import StatsChart from '@/components/dashboard/StatsChart'
 import Card, { CardHeader, CardTitle } from '@/components/ui/Card'
 import { formatDuree } from '@/lib/utils'
@@ -76,6 +77,7 @@ const SCORE_CONFIG: Record<CollabStat['score'], { label: string; bg: string; tex
 export default function StatsPage() {
   const { utilisateur } = useAuth()
   const supabase = createClient()
+  const { siteId } = useSiteFilter()
 
   const [visites, setVisites] = useState<VisiteRaw[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,8 +94,10 @@ export default function StatsPage() {
 
   useEffect(() => {
     if (!utilisateur?.entreprise_id) return
+    setLoading(true)
     charger()
-  }, [utilisateur?.entreprise_id, periode])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [utilisateur?.entreprise_id, periode, siteId])
 
   const charger = async () => {
     if (!utilisateur?.entreprise_id) return
@@ -101,6 +105,7 @@ export default function StatsPage() {
     const debut = new Date()
     debut.setDate(debut.getDate() - parseInt(periode))
 
+    const isPrimaire = ['patron', 'admin'].includes(utilisateur.role)
     const isResponsableSite = utilisateur.permissions?.responsable_site === true && utilisateur.role === 'collaborateur'
 
     let q = supabase
@@ -111,7 +116,8 @@ export default function StatsPage() {
       .order('heure_arrivee', { ascending: false })
       .limit(2000)
 
-    if (isResponsableSite && utilisateur.site_id) q = q.eq('site_id', utilisateur.site_id)
+    if (isPrimaire && siteId) q = q.eq('site_id', siteId)
+    else if (isResponsableSite && utilisateur.site_id) q = q.eq('site_id', utilisateur.site_id)
 
     const { data } = await q
     setVisites((data ?? []) as unknown as VisiteRaw[])

@@ -4,11 +4,13 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import MessagesInbox from '@/components/shared/MessagesInbox'
+import { useSiteFilter } from '@/hooks/useSiteFilter'
 
 export default function MessagesPageDashboard() {
   const { utilisateur } = useAuth()
   const searchParams   = useSearchParams()
   const defaultVisiteId = searchParams.get('visite')
+  const { siteId } = useSiteFilter()
 
   if (!utilisateur) return null
 
@@ -39,6 +41,7 @@ export default function MessagesPageDashboard() {
       <MessagesInbox
         utilisateur={utilisateur as never}
         defaultVisiteId={defaultVisiteId}
+        siteId={['patron', 'admin'].includes(utilisateur.role) ? siteId : null}
       />
     </div>
   )

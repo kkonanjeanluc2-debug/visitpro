@@ -22,9 +22,10 @@ interface Thread {
 interface MessagesInboxProps {
   utilisateur: Utilisateur
   defaultVisiteId?: string | null
+  siteId?: string | null
 }
 
-export default function MessagesInbox({ utilisateur, defaultVisiteId }: MessagesInboxProps) {
+export default function MessagesInbox({ utilisateur, defaultVisiteId, siteId }: MessagesInboxProps) {
   const supabase = createClient()
   const [threads, setThreads] = useState<Thread[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,7 +40,7 @@ export default function MessagesInbox({ utilisateur, defaultVisiteId }: Messages
         .select(`
           visite_id, corps, created_at, lu, auteur_id, destinataire_id,
           auteur:utilisateurs!auteur_id(nom, prenom),
-          visite:visites!visite_id(nom_visiteur, prenom_visiteur, statut, destinataire_id, enregistre_par)
+          visite:visites!visite_id(nom_visiteur, prenom_visiteur, statut, destinataire_id, enregistre_par, site_id)
         `)
         .or(`auteur_id.eq.${utilisateur.id},destinataire_id.eq.${utilisateur.id}`)
         .eq('entreprise_id', utilisateur.entreprise_id)
@@ -50,7 +51,9 @@ export default function MessagesInbox({ utilisateur, defaultVisiteId }: Messages
       for (const m of (data ?? [])) {
         const vid = m.visite_id as string
         const auteur = m.auteur as unknown as { nom: string; prenom: string } | null
-        const visite = m.visite as unknown as { nom_visiteur: string; prenom_visiteur?: string; statut: string; destinataire_id: string | null; enregistre_par: string | null } | null
+        const visite = m.visite as unknown as { nom_visiteur: string; prenom_visiteur?: string; statut: string; destinataire_id: string | null; enregistre_par: string | null; site_id: string | null } | null
+        // Filtrer par site si un site est sélectionné
+        if (siteId && visite?.site_id !== siteId) continue
         if (!map[vid]) {
           map[vid] = {
             visite_id: vid,
@@ -80,7 +83,7 @@ export default function MessagesInbox({ utilisateur, defaultVisiteId }: Messages
     } finally {
       setLoading(false)
     }
-  }, [utilisateur.id, utilisateur.entreprise_id])
+  }, [utilisateur.id, utilisateur.entreprise_id, siteId])
 
   useEffect(() => {
     charger()
