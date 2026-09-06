@@ -12,11 +12,17 @@ export default function NouvelleReunionPage() {
   const { utilisateur } = useAuth()
   const router = useRouter()
 
+  const peutCreer = utilisateur && (
+    ['patron', 'admin'].includes(utilisateur.role) ||
+    (utilisateur.role === 'collaborateur' && utilisateur.permissions?.responsable_site === true)
+  )
+
   useEffect(() => {
-    if (utilisateur && !['patron', 'admin'].includes(utilisateur.role)) {
+    if (utilisateur && !peutCreer) {
       router.replace('/dashboard/reunions')
     }
-  }, [utilisateur, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [utilisateur])
 
   const handleSubmit = useCallback(async (data: ReunionFormData) => {
     if (!utilisateur) return

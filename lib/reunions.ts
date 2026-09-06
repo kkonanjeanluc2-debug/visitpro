@@ -314,22 +314,25 @@ export async function finaliserCompteRendu(reunionId: string): Promise<CompteRen
 
 // ── Widget dashboard ──────────────────────────────────────────────────────────
 
-export async function statsReunionsDashboard(entrepriseId: string) {
+export async function statsReunionsDashboard(entrepriseId: string, siteId?: string | null) {
   const sb = createClient()
   const today = new Date().toISOString().split('T')[0]
   const in7days = new Date(Date.now() + 7 * 86400_000).toISOString().split('T')[0]
 
+  let qProchaines = sb
+    .from('reunions')
+    .select('id, titre, date_reunion, heure_debut, type, statut')
+    .eq('entreprise_id', entrepriseId)
+    .gte('date_reunion', today)
+    .lte('date_reunion', in7days)
+    .in('statut', ['planifiee', 'en_cours'])
+    .order('date_reunion')
+    .order('heure_debut')
+    .limit(3)
+  if (siteId) qProchaines = qProchaines.eq('site_id', siteId)
+
   const [{ data: prochaines }, { count: brouillonsCR }] = await Promise.all([
-    sb
-      .from('reunions')
-      .select('id, titre, date_reunion, heure_debut, type, statut')
-      .eq('entreprise_id', entrepriseId)
-      .gte('date_reunion', today)
-      .lte('date_reunion', in7days)
-      .in('statut', ['planifiee', 'en_cours'])
-      .order('date_reunion')
-      .order('heure_debut')
-      .limit(3),
+    qProchaines,
     sb
       .from('comptes_rendus')
       .select('id, reunions!inner(entreprise_id)', { count: 'exact', head: true })

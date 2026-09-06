@@ -413,7 +413,10 @@ export default function DashboardPage() {
       <KpiGrid stats={stats} loading={loading} />
 
       {utilisateur && ['patron', 'collaborateur'].includes(utilisateur.role) && (
-        <ReunionsWidget entrepriseId={utilisateur.entreprise_id} />
+        <ReunionsWidget
+          entrepriseId={utilisateur.entreprise_id}
+          siteId={['patron', 'admin'].includes(utilisateur.role) ? (siteSelectionne || null) : (utilisateur.site_id ?? null)}
+        />
       )}
 
       {visitesEnCours.length > 0 && (

@@ -17,20 +17,21 @@ const TYPE_LABEL: Record<string, string> = {
   interne: 'Interne', externe: 'Externe', comite: 'Comité', autre: 'Autre',
 }
 
-export default function ReunionsWidget({ entrepriseId }: { entrepriseId: string }) {
+export default function ReunionsWidget({ entrepriseId, siteId }: { entrepriseId: string; siteId?: string | null }) {
   const [prochaines, setProchaines] = useState<ProchReunion[]>([])
   const [brouillons, setBrouillons] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    statsReunionsDashboard(entrepriseId)
+    setLoading(true)
+    statsReunionsDashboard(entrepriseId, siteId)
       .then(({ prochaines: p, brouillonsCR }) => {
         setProchaines(p)
         setBrouillons(brouillonsCR)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [entrepriseId])
+  }, [entrepriseId, siteId])
 
   if (loading) {
     return (
