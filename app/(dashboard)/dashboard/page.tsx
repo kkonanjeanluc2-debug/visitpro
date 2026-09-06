@@ -176,6 +176,8 @@ export default function DashboardPage() {
   }, [utilisateur, periode, dateDebut, dateFin, siteSelectionne])
 
   useEffect(() => { charger() }, [charger])
+  // Afficher le skeleton immédiatement quand le site ou la période change
+  useEffect(() => { setLoading(true) }, [siteSelectionne, periode])
   useEffect(() => initialiserAudio(), [])
 
   const chargerRef = useRef(charger)

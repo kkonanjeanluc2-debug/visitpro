@@ -47,6 +47,7 @@ export default function ReunionsPage() {
   }, [utilisateur, siteSelectionne])
 
   useEffect(() => { charger() }, [charger])
+  useEffect(() => { setLoading(true) }, [siteSelectionne])
 
   // Sites — admin/patron uniquement
   useEffect(() => {
