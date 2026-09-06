@@ -52,8 +52,8 @@ export default function ReunionsPage() {
   useEffect(() => {
     if (!utilisateur || !isPrimaire) return
     const sb = createClient()
-    sb.from('sites').select('id, nom').eq('entreprise_id', utilisateur.entreprise_id).eq('actif', true).order('nom')
-      .then(({ data }) => setSites(data ?? []))
+    sb.from('sites').select('*').eq('entreprise_id', utilisateur.entreprise_id).eq('actif', true).order('nom')
+      .then(({ data }) => setSites((data ?? []) as Site[]))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [utilisateur?.id])
 
