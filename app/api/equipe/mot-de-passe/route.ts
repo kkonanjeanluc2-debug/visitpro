@@ -1,27 +1,15 @@
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifierGestionnaireEquipe, peutGererUtilisateur } from '@/lib/equipe-auth'
 
-// Permet au patron/admin d'une entreprise de définir le mot de passe
-// d'un collaborateur de SA propre entreprise.
+// Permet au patron/admin (toute l'entreprise) ou au responsable de site
+// (son site) de définir le mot de passe d'un collaborateur.
 export async function POST(req: Request) {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ erreur: 'Non authentifié' }, { status: 401 })
-
-  const admin = createAdminClient()
-
-  const { data: moi } = await admin
-    .from('utilisateurs')
-    .select('role, entreprise_id, actif')
-    .eq('id', user.id)
-    .single()
-
-  if (!moi || !moi.actif || !['patron', 'admin'].includes(moi.role)) {
-    return NextResponse.json({ erreur: 'Accès interdit' }, { status: 403 })
-  }
+  const auth = await verifierGestionnaireEquipe()
+  if (!auth.ok) return auth.reponse
+  const g = auth.gestionnaire
 
   const { userId, password } = await req.json().catch(() => ({}))
   if (typeof userId !== 'string' || typeof password !== 'string') {
@@ -30,18 +18,19 @@ export async function POST(req: Request) {
   if (password.length < 8) {
     return NextResponse.json({ erreur: 'Le mot de passe doit contenir au moins 8 caractères' }, { status: 400 })
   }
-  if (userId === user.id) {
+  if (userId === g.id) {
     return NextResponse.json({ erreur: 'Utilisez la page Sécurité pour changer votre propre mot de passe' }, { status: 400 })
   }
 
+  const admin = createAdminClient()
   const { data: cible } = await admin
     .from('utilisateurs')
-    .select('entreprise_id, role')
+    .select('entreprise_id, site_id, role, is_super_admin')
     .eq('id', userId)
     .single()
 
-  // Même message si l'utilisateur n'existe pas ou appartient à une autre entreprise
-  if (!cible || cible.entreprise_id !== moi.entreprise_id || cible.role === 'superadmin') {
+  // Même message si l'utilisateur n'existe pas ou est hors de portée
+  if (!cible || !peutGererUtilisateur(g, cible)) {
     return NextResponse.json({ erreur: 'Utilisateur introuvable' }, { status: 404 })
   }
 

@@ -10,8 +10,8 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-  const { data: moi } = await supabase.from('utilisateurs').select('role').eq('id', user.id).single()
-  if (moi?.role !== 'superadmin') {
+  const { data: moi } = await supabase.from('utilisateurs').select('is_super_admin').eq('id', user.id).single()
+  if (moi?.is_super_admin !== true) {
     return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
   }
 

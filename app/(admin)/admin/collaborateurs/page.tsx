@@ -58,7 +58,10 @@ export default function CollaborateursPage() {
   const supabase = createClient()
 
   const isResponsableSite = utilisateur?.permissions?.responsable_site === true && utilisateur?.role === 'collaborateur'
-  const peutChangerMdp = utilisateur?.role === 'patron' || utilisateur?.role === 'admin'
+  // Mêmes règles que lib/equipe-auth.ts (la vérification réelle est côté serveur)
+  const peutChangerMdp = (u: Utilisateur) =>
+    utilisateur?.role === 'patron' || utilisateur?.role === 'admin' ||
+    (isResponsableSite && u.site_id === utilisateur?.site_id && u.role !== 'patron' && u.role !== 'admin')
 
   const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([])
   const [loading, setLoading] = useState(true)
@@ -412,7 +415,7 @@ export default function CollaborateursPage() {
                         </svg>
                       </button>
                       {/* Changer le mot de passe */}
-                      {peutChangerMdp && (
+                      {peutChangerMdp(u) && (
                         <button
                           onClick={() => ouvrirMdp(u)}
                           className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
