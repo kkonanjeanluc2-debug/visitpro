@@ -6,7 +6,7 @@
 -- créer une ligne utilisateurs avec le rôle et l'entreprise de son choix.
 --
 -- Toutes les créations de compte passent par le service role, qui ignore la RLS :
---   /api/register, /api/auth/invite, /api/appsumo/activer
+--   /api/register, /api/auth/invite
 -- Aucune politique INSERT n'est donc nécessaire.
 
 DROP POLICY IF EXISTS "utilisateurs_insert" ON utilisateurs;
