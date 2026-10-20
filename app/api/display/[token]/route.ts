@@ -14,6 +14,9 @@ const NO_CACHE_HEADERS = {
   'Vercel-CDN-Cache-Control': 'no-store',
 }
 
+// Un visiteur appelé reste annonçable pendant 2 min (écran rechargé, réseau coupé…)
+const APPEL_FENETRE_MS = 2 * 60 * 1000
+
 async function handleDisplay(token: string) {
   noStore()
 
@@ -94,23 +97,44 @@ async function handleDisplay(token: string) {
   // Filtrer par site si c'est un écran de site
   if (siteId) q = q.eq('site_id', siteId)
 
-  const { data: visitesData, error: visitesError } = await q
+  // Visiteurs appelés récemment ("Faire entrer") — annoncés une fois par l'écran
+  let qAppels = admin
+    .from('visites')
+    .select('id, nom_visiteur, prenom_visiteur, decision_at, destinataire_id')
+    .eq('entreprise_id', entrepriseId)
+    .in('statut', ['acceptee', 'en_cours'])
+    .gte('decision_at', new Date(Date.now() - APPEL_FENETRE_MS).toISOString())
+    .order('decision_at', { ascending: true })
+    .limit(20)
+  if (siteId) qAppels = qAppels.eq('site_id', siteId)
+
+  const [{ data: visitesData, error: visitesError }, { data: appelsData }] = await Promise.all([q, qAppels])
 
   // Noms des destinataires
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const destinataireIds = Array.from(new Set((visitesData ?? []).map((v: any) => v.destinataire_id).filter(Boolean)))
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const destinataireMap: Record<string, { prenom: string | null; nom: string }> = {}
+  const destinataireIds = Array.from(new Set(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [...(visitesData ?? []), ...(appelsData ?? [])].map((v: any) => v.destinataire_id).filter(Boolean)
+  ))
+  const destinataireMap: Record<string, { prenom: string | null; nom: string; poste: string | null }> = {}
 
   if (destinataireIds.length > 0) {
     const { data: users } = await admin
       .from('utilisateurs')
-      .select('id, prenom, nom')
+      .select('id, prenom, nom, poste')
       .in('id', destinataireIds)
     for (const u of users ?? []) {
-      destinataireMap[u.id] = { prenom: u.prenom, nom: u.nom }
+      destinataireMap[u.id] = { prenom: u.prenom, nom: u.nom, poste: u.poste }
     }
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const appels = (appelsData ?? []).map((v: any) => ({
+    id: v.id,
+    nom_visiteur: v.nom_visiteur,
+    prenom_visiteur: v.prenom_visiteur,
+    decision_at: v.decision_at,
+    destinataire: v.destinataire_id ? (destinataireMap[v.destinataire_id] ?? null) : null,
+  }))
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visites = (visitesData ?? []).map((v: any) => ({
@@ -122,7 +146,7 @@ async function handleDisplay(token: string) {
   console.log(`[display] ${entreprise.nom} | site=${siteId ?? 'global'} | visites=${visites.length} | err=${visitesError?.message ?? 'none'}`)
 
   return NextResponse.json(
-    { entreprise, visites, _ts: Date.now() },
+    { entreprise, visites, appels, _ts: Date.now() },
     { headers: NO_CACHE_HEADERS }
   )
 }

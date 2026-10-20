@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { annoncer, retirer, marquerAnnoncee, estOccupe, activerSon, deverrouillerAudio, sonAutoriseSansGeste } from '@/lib/annonceur'
 
 interface VisiteDisplay {
   id: string
@@ -39,111 +40,44 @@ function formatHeure(iso: string) {
   return new Date(iso).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' })
 }
 
-// ── Audio state (module-level pour persister entre les rendus) ────────────
-// AudioContext déverrouillé lors du geste utilisateur → peut lire sans geste ensuite
-let audioCtx: AudioContext | null = null
-let sourceEnCours: AudioBufferSourceNode | null = null
-let retryTimeout: ReturnType<typeof setTimeout> | null = null
-let methodeTTS: 'speech' | 'audio' | null = null
-
-// Appeler une seule fois depuis un geste utilisateur (clic) pour déverrouiller l'audio
-function deverrouillerAudio() {
-  if (audioCtx) return
-  try {
-    type AnyAC = typeof AudioContext
-    const AC: AnyAC | undefined =
-      (window as unknown as Record<string, AnyAC>).AudioContext ??
-      (window as unknown as Record<string, AnyAC>).webkitAudioContext
-    if (!AC) return
-    audioCtx = new AC()
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
-  } catch { /* */ }
+interface AppelDisplay {
+  id: string
+  nom_visiteur: string
+  prenom_visiteur?: string
+  decision_at: string
+  destinataire?: { prenom?: string; nom: string; poste?: string | null } | null
 }
 
-// Joue un MP3 depuis notre proxy TTS — utilise AudioContext si disponible (pas de restriction autoplay)
-async function jouerAudioTTS(texte: string, essais = 2) {
-  if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null }
-  const retry = () => {
-    if (essais > 0) retryTimeout = setTimeout(() => jouerAudioTTS(texte, essais - 1), 1000)
+function texteBienvenue(v: VisiteDisplay) {
+  let texte = `Bienvenue, ${nomComplet(v.nom_visiteur, v.prenom_visiteur)}.`
+  if (v.destinataire?.nom) {
+    texte += ` ${nomComplet(v.destinataire.nom, v.destinataire.prenom)} va vous recevoir dans quelques instants.`
   }
-  try {
-    // Couper la lecture précédente
-    if (sourceEnCours) { try { sourceEnCours.stop() } catch { /* */ } sourceEnCours = null }
-
-    const url = `/api/tts?q=${encodeURIComponent(texte)}&_=${Date.now()}`
-    const res = await fetch(url)
-    if (!res.ok) { retry(); return }
-    const buf = await res.arrayBuffer()
-
-    if (audioCtx) {
-      // AudioContext déverrouillé → aucune restriction autoplay
-      if (audioCtx.state === 'suspended') await audioCtx.resume()
-      const decoded = await audioCtx.decodeAudioData(buf)
-      const src = audioCtx.createBufferSource()
-      sourceEnCours = src
-      src.buffer = decoded
-      src.connect(audioCtx.destination)
-      src.onended = () => { if (sourceEnCours === src) sourceEnCours = null }
-      src.start(0)
-    } else {
-      // Fallback : Blob URL évite le cache et les restrictions de certains navigateurs
-      const blob = new Blob([buf], { type: 'audio/mpeg' })
-      const blobUrl = URL.createObjectURL(blob)
-      const audio = new Audio(blobUrl)
-      audio.onended = () => URL.revokeObjectURL(blobUrl)
-      audio.onerror = () => { URL.revokeObjectURL(blobUrl); retry() }
-      audio.play().catch(retry)
-    }
-  } catch { retry() }
+  return texte
 }
 
-function parlerAvecSpeech(texte: string) {
-  try {
-    const synth = window.speechSynthesis
-    synth.cancel()
-    const utt = new SpeechSynthesisUtterance(texte)
-    utt.rate = 0.92
-    const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
-    if (frVoix) { utt.voice = frVoix; utt.lang = 'fr-FR' }
-    utt.onerror = () => { methodeTTS = 'audio'; jouerAudioTTS(texte) }
-    synth.speak(utt)
-  } catch { methodeTTS = 'audio'; jouerAudioTTS(texte) }
-}
-
-function parlerTTS(texte: string) {
-  if (methodeTTS === 'audio')  { jouerAudioTTS(texte); return }
-  if (methodeTTS === 'speech') { parlerAvecSpeech(texte); return }
-
-  // Premier appel : détecter la méthode qui marche sur cet appareil
-  let done = false
-  const useFallback = () => {
-    if (done) return; done = true; methodeTTS = 'audio'; jouerAudioTTS(texte)
+function texteAppel(a: AppelDisplay) {
+  const nom = nomComplet(a.nom_visiteur, a.prenom_visiteur)
+  if (!a.destinataire?.nom) {
+    return `${nom}, s'il vous plaît. Vous êtes attendu. Veuillez vous présenter à l'accueil. Merci.`
   }
-  try {
-    const synth = window.speechSynthesis
-    if (!synth) { useFallback(); return }
-    synth.cancel()
-    const doSpeak = () => {
-      try {
-        const utt = new SpeechSynthesisUtterance(texte)
-        utt.rate = 0.92
-        const frVoix = synth.getVoices().find(v => v.lang.startsWith('fr'))
-        if (frVoix) { utt.voice = frVoix; utt.lang = 'fr-FR' }
-        utt.onstart = () => { done = true; methodeTTS = 'speech' }
-        utt.onerror  = () => useFallback()
-        synth.speak(utt)
-      } catch { useFallback() }
-    }
-    const voices = synth.getVoices()
-    if (voices.length > 0) { doSpeak() } else {
-      let fired = false
-      const fire = () => { if (!fired) { fired = true; doSpeak() } }
-      synth.addEventListener('voiceschanged', fire, { once: true })
-      setTimeout(fire, 500)
-    }
-  } catch { useFallback(); return }
-  setTimeout(useFallback, 1500)
+  const dest = nomComplet(a.destinataire.nom, a.destinataire.prenom)
+  const poste = a.destinataire.poste ? `, ${a.destinataire.poste},` : ''
+  return `${nom}, s'il vous plaît. Veuillez vous diriger vers ${dest}${poste} qui va vous recevoir. Merci.`
 }
+
+// Appels déjà lus, conservés pendant la session de l'onglet (survit au rechargement auto)
+const CLE_STOCKAGE_APPELS = 'visitpro-display-appels'
+function lireAppelsLus(): string[] {
+  try { return JSON.parse(sessionStorage.getItem(CLE_STOCKAGE_APPELS) ?? '[]') } catch { return [] }
+}
+function memoriserAppelLu(id: string) {
+  try {
+    const ids = lireAppelsLus().filter(x => x !== id).concat(id).slice(-50)
+    sessionStorage.setItem(CLE_STOCKAGE_APPELS, JSON.stringify(ids))
+  } catch { /* stockage indisponible : l'appel pourra être relu après rechargement */ }
+}
+const CLE_STOCKAGE_SON = 'visitpro-display-son'
 
 export default function DisplayPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -159,8 +93,24 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
   const abortRef = useRef<AbortController | null>(null)
   const prevVisiteIdsRef = useRef<Set<string>>(new Set())
   const initialisedRef = useRef(false)
-  const audioActifRef = useRef(false)
   const [audioActif, setAudioActif] = useState(false)
+  const [appelAffiche, setAppelAffiche] = useState<AppelDisplay | null>(null)
+
+  const changerSon = useCallback((actif: boolean, message?: string) => {
+    if (actif) deverrouillerAudio()
+    activerSon(actif)
+    setAudioActif(actif)
+    try { sessionStorage.setItem(CLE_STOCKAGE_SON, actif ? '1' : '0') } catch { /* */ }
+    if (actif && message) annoncer({ cle: `son-${Date.now()}`, texte: message, priorite: 0 })
+  }, [])
+
+  // Après un rechargement : réactiver le son sans toucher l'écran si le navigateur le permet
+  useEffect(() => {
+    let voulu = false
+    try { voulu = sessionStorage.getItem(CLE_STOCKAGE_SON) === '1' } catch { /* */ }
+    if (!voulu) return
+    sonAutoriseSansGeste().then(ok => { if (ok) changerSon(true) })
+  }, [changerSon])
 
   // Horloge
   useEffect(() => {
@@ -169,9 +119,15 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
     return () => clearInterval(t)
   }, [])
 
-  // Rechargement automatique toutes les 5 min — garantit le dernier code déployé
+  // Rechargement automatique toutes les 5 min — garantit le dernier code déployé.
+  // Jamais pendant une annonce : on attend que la file soit vide.
   useEffect(() => {
-    const t = setTimeout(() => window.location.reload(), 5 * 60 * 1000)
+    let t: ReturnType<typeof setTimeout>
+    const tenter = () => {
+      if (estOccupe()) { t = setTimeout(tenter, 5_000); return }
+      window.location.reload()
+    }
+    t = setTimeout(tenter, 5 * 60 * 1000)
     return () => clearTimeout(t)
   }, [])
 
@@ -202,7 +158,7 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         setPollErreurs((n) => n + 1)
         return
       }
-      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[]; _ts: number } = await res.json()
+      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[]; appels?: AppelDisplay[]; _ts: number } = await res.json()
       if (!mountedRef.current) return
       setPollErreurs(0)
       setEntreprise(data.entreprise)
@@ -212,22 +168,35 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         // FIFO strict : le plus ancien en tête de liste
         return (a.heure_arrivee ?? '').localeCompare(b.heure_arrivee ?? '')
       })
-      // Annoncer vocalement les nouveaux visiteurs
-      const newIds = new Set(sorted.map(v => v.id))
-      if (initialisedRef.current && audioActifRef.current) {
-        for (const v of sorted) {
-          if (!prevVisiteIdsRef.current.has(v.id)) {
-            const nom = nomComplet(v.nom_visiteur, v.prenom_visiteur)
-            let texte = `Bienvenue, ${nom}.`
-            if (v.destinataire?.nom) {
-              const dest = nomComplet(v.destinataire.nom, v.destinataire.prenom)
-              texte += ` ${dest} va vous recevoir dans quelques instants.`
-            }
-            parlerTTS(texte)
-          }
+      // ── Annonces (une seule file : jamais deux messages en même temps) ──────
+      if (!initialisedRef.current) {
+        // Visiteurs déjà présents à l'ouverture de l'écran : pas de bienvenue rétroactive
+        for (const v of sorted) marquerAnnoncee(`arrivee-${v.id}`)
+        for (const id of lireAppelsLus()) marquerAnnoncee(`appel-${id}`)
+      }
+
+      // 1. Visiteurs appelés ("Faire entrer") — prioritaires
+      for (const a of data.appels ?? []) {
+        retirer(`arrivee-${a.id}`) // inutile de souhaiter la bienvenue à quelqu'un déjà appelé
+        annoncer({
+          cle: `appel-${a.id}`,
+          texte: texteAppel(a),
+          priorite: 0,
+          carillon: true,
+          dureeMinMs: 8_000,
+          onDebut: () => { memoriserAppelLu(a.id); if (mountedRef.current) setAppelAffiche(a) },
+          onFin: () => { if (mountedRef.current) setAppelAffiche(null) },
+        })
+      }
+
+      // 2. Nouveaux visiteurs arrivés
+      for (const v of sorted) {
+        if (!prevVisiteIdsRef.current.has(v.id)) {
+          annoncer({ cle: `arrivee-${v.id}`, texte: texteBienvenue(v), priorite: 1 })
         }
       }
-      prevVisiteIdsRef.current = newIds
+
+      prevVisiteIdsRef.current = new Set(sorted.map(v => v.id))
       initialisedRef.current = true
       setVisites(sorted.slice(0, 12))
       setLastFetch(new Date().toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
@@ -473,17 +442,7 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
             <span className="opacity-30 text-xs" style={{ color: texte }}>En direct</span>
           </div>
           <button
-            onClick={() => {
-              const next = !audioActif
-              audioActifRef.current = next
-              setAudioActif(next)
-              if (next) {
-                deverrouillerAudio()
-                parlerTTS('Son activé.')
-              } else {
-                try { window.speechSynthesis?.cancel() } catch { /* */ }
-              }
-            }}
+            onClick={() => changerSon(!audioActif, 'Son activé.')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
             style={{
               backgroundColor: audioActif ? `${overlay}0.12)` : `${overlay}0.06)`,
@@ -513,17 +472,66 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         </div>
       </footer>
 
+      {/* ── APPEL EN COURS ("Faire entrer") ── */}
+      {appelAffiche && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center animate-fade-in-down"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="text-center rounded-3xl"
+            style={{
+              padding: 'clamp(32px, 5vw, 80px) clamp(40px, 7vw, 120px)',
+              backgroundColor: fond,
+              color: texte,
+              border: `2px solid ${overlay}0.25)`,
+              maxWidth: '82vw',
+              boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+            }}
+          >
+            <p
+              className="inline-flex items-center gap-3 font-semibold uppercase tracking-[0.3em] opacity-70"
+              style={{ fontSize: 'clamp(14px, 1.6vw, 24px)' }}
+            >
+              <span className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
+              Appel
+            </p>
+            <p
+              className="font-bold leading-tight mt-4"
+              style={{ fontSize: 'clamp(36px, 6vw, 96px)' }}
+            >
+              {nomComplet(appelAffiche.nom_visiteur, appelAffiche.prenom_visiteur)}
+            </p>
+            <div className="mx-auto my-6 h-px w-1/3" style={{ backgroundColor: `${overlay}0.25)` }} />
+            {appelAffiche.destinataire?.nom ? (
+              <>
+                <p className="font-light opacity-75" style={{ fontSize: 'clamp(18px, 2.2vw, 36px)' }}>
+                  Veuillez vous diriger vers
+                </p>
+                <p className="font-semibold mt-2" style={{ fontSize: 'clamp(24px, 3.4vw, 56px)' }}>
+                  {nomComplet(appelAffiche.destinataire.nom, appelAffiche.destinataire.prenom)}
+                </p>
+                {appelAffiche.destinataire.poste && (
+                  <p className="font-light opacity-60 mt-1" style={{ fontSize: 'clamp(14px, 1.6vw, 26px)' }}>
+                    {appelAffiche.destinataire.poste}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="font-light opacity-75" style={{ fontSize: 'clamp(18px, 2.2vw, 36px)' }}>
+                Veuillez vous présenter à l&apos;accueil
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── OVERLAY ACTIVATION AUDIO ── */}
       {!audioActif && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 cursor-pointer"
           style={{ backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)' }}
-          onClick={() => {
-            deverrouillerAudio()
-            audioActifRef.current = true
-            setAudioActif(true)
-            parlerTTS('Son activé. Bienvenue.')
-          }}
+          onClick={() => changerSon(true, 'Son activé. Bienvenue.')}
         >
           <div
             className="text-center rounded-3xl"
@@ -546,7 +554,7 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
               className="mt-4 opacity-55 leading-relaxed"
               style={{ fontSize: 'clamp(13px, 1.5vw, 24px)', color: texte }}
             >
-              Les visiteurs seront annoncés à haute voix à leur arrivée
+              Les visiteurs seront annoncés à haute voix à leur arrivée et lorsqu&apos;ils sont appelés
             </p>
             <div
               className="mt-8 inline-flex items-center gap-3 rounded-2xl font-semibold"
