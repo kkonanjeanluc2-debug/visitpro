@@ -292,14 +292,15 @@ export function genererCompteRenduPDF(
         statutLabel[a.statut] ?? a.statut,
       ]),
       margin: { left: marginL, right: marginR },
-      styles: { fontSize: 11, cellPadding: 4, font: 'times' },
+      styles: { fontSize: 11, cellPadding: 3, font: 'times', valign: 'middle' },
       headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 11 },
       alternateRowStyles: { fillColor: [243, 244, 246] },
+      // Largeurs fixes sauf "Action" qui prend le reste (contentW = 174 mm)
       columnStyles: {
-        0: { cellWidth: 8, halign: 'center' },
-        1: { cellWidth: 70 },
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 'auto' },
         2: { cellWidth: 36 },
-        3: { cellWidth: 22 },
+        3: { cellWidth: 28 },
         4: { cellWidth: 26 },
       },
     })
