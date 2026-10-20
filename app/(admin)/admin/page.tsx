@@ -182,9 +182,13 @@ export default function ParametresPage() {
 
   useEffect(() => {
     if (utilisateur?.role === 'collaborateur') {
-      setSection(s => (s === 'entreprise' || s === 'sites' || s === 'equipe' || s === 'abonnement' || s === 'notifications') ? 'securite' : s)
+      const responsableSite = utilisateur.permissions?.responsable_site === true
+      setSection(s => {
+        if (s === 'equipe' && responsableSite) return s
+        return (s === 'entreprise' || s === 'sites' || s === 'equipe' || s === 'abonnement' || s === 'notifications') ? 'securite' : s
+      })
     }
-  }, [utilisateur?.role])
+  }, [utilisateur?.role, utilisateur?.permissions?.responsable_site])
 
   // Applique le thème dès que les couleurs changent (prévisualisation en temps réel)
   useEffect(() => {
@@ -345,8 +349,10 @@ export default function ParametresPage() {
   const limiteSites = !planCourant.multi_sites && sites.length >= 1
   // Sections visibles selon le rôle
   const SECTIONS_COLLABORATEUR: Section[] = ['securite', 'apparence']
+  // Le responsable de site gère aussi l'équipe de son site
+  const SECTIONS_RESPONSABLE_SITE: Section[] = ['equipe', 'securite', 'apparence']
   const sectionsVisibles = SECTIONS.filter(s => {
-    if (isCollaborateur && !SECTIONS_COLLABORATEUR.includes(s.id)) return false
+    if (isCollaborateur && !(isResponsableSite ? SECTIONS_RESPONSABLE_SITE : SECTIONS_COLLABORATEUR).includes(s.id)) return false
     if (isResponsableSite && s.id === 'abonnement') return false
     return true
   })

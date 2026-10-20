@@ -107,9 +107,15 @@ export default function CollaborateursPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [sites, setSites] = useState<Site[]>([])
 
+  // Page réservée aux gestionnaires d'équipe : patron/admin ou responsable de site
+  const estGestionnaire = utilisateur?.role === 'patron' || utilisateur?.role === 'admin' || isResponsableSite
   useEffect(() => {
-    if (utilisateur?.entreprise_id) { charger(); chargerSites() }
-  }, [utilisateur?.entreprise_id])
+    if (utilisateur && !estGestionnaire) router.replace('/admin')
+  }, [utilisateur, estGestionnaire, router])
+
+  useEffect(() => {
+    if (utilisateur?.entreprise_id && estGestionnaire) { charger(); chargerSites() }
+  }, [utilisateur?.entreprise_id, estGestionnaire])
 
   const charger = async () => {
     let query = supabase
@@ -329,7 +335,7 @@ export default function CollaborateursPage() {
     return map[r] ?? r
   }
 
-  if (!utilisateur) return null
+  if (!utilisateur || !estGestionnaire) return null
 
   const planInfo = PLANS[(utilisateur.entreprise?.plan ?? 'starter') as Plan]
   const maxUsers = planInfo.max_utilisateurs
