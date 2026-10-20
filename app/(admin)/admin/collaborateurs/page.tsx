@@ -59,7 +59,7 @@ export default function CollaborateursPage() {
 
   const isResponsableSite = utilisateur?.permissions?.responsable_site === true && utilisateur?.role === 'collaborateur'
   // Mêmes règles que lib/equipe-auth.ts (la vérification réelle est côté serveur)
-  const peutChangerMdp = (u: Utilisateur) =>
+  const peutGerer = (u: Utilisateur) =>
     utilisateur?.role === 'patron' || utilisateur?.role === 'admin' ||
     (isResponsableSite && u.site_id === utilisateur?.site_id && u.role !== 'patron' && u.role !== 'admin')
 
@@ -70,6 +70,7 @@ export default function CollaborateursPage() {
   const [userADesactiver, setUserADesactiver] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
+  const [erreurListe, setErreurListe] = useState<string | null>(null)
 
   // Modal modifier utilisateur
   const [showEditModal, setShowEditModal] = useState(false)
@@ -209,23 +210,20 @@ export default function CollaborateursPage() {
     // Les admins/patrons n'ont pas besoin de permissions granulaires
     const permissionsToSave = ['collaborateur', 'secretaire'].includes(editRole) ? editPerms : {}
 
-    const { error } = await supabase
-      .from('utilisateurs')
-      .update({
-        nom: editNom.trim(),
-        prenom: editPrenom.trim(),
-        poste: editPoste.trim() || null,
-        service: editService.trim() || null,
-        role: editRole,
-        site_id: isResponsableSite ? (utilisateur?.site_id ?? null) : (editSiteId || null),
-        permissions: permissionsToSave,
-      })
-      .eq('id', userAEditer.id)
+    const erreurMaj = await majUtilisateur(userAEditer.id, {
+      nom: editNom.trim(),
+      prenom: editPrenom.trim(),
+      poste: editPoste.trim() || null,
+      service: editService.trim() || null,
+      role: editRole,
+      site_id: isResponsableSite ? (utilisateur?.site_id ?? null) : (editSiteId || null),
+      permissions: permissionsToSave,
+    })
 
     setSavingEdit(false)
 
-    if (error) {
-      setErreurEdit(error.message)
+    if (erreurMaj) {
+      setErreurEdit(erreurMaj)
       return
     }
 
@@ -281,11 +279,25 @@ export default function CollaborateursPage() {
     }
   }
 
+  // Passe par le serveur : les règles d'accès (patron/admin, responsable de site) y sont vérifiées
+  const majUtilisateur = async (userId: string, champs: Record<string, unknown>): Promise<string | null> => {
+    try {
+      const response = await fetch('/api/equipe/utilisateur', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, ...champs }),
+      })
+      if (response.ok) return null
+      const data = await response.json().catch(() => ({}))
+      return data.erreur ?? 'Erreur lors de la modification'
+    } catch {
+      return 'Erreur réseau, veuillez réessayer'
+    }
+  }
+
   const toggleActif = async (userId: string, actif: boolean) => {
-    await supabase
-      .from('utilisateurs')
-      .update({ actif: !actif })
-      .eq('id', userId)
+    const erreurMaj = await majUtilisateur(userId, { actif: !actif })
+    setErreurListe(erreurMaj)
 
     charger()
     setShowDesactiverModal(false)
@@ -361,6 +373,13 @@ export default function CollaborateursPage() {
         )}
       </div>
 
+      {erreurListe && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start justify-between gap-3">
+          <p className="text-sm text-red-700">{erreurListe}</p>
+          <button onClick={() => setErreurListe(null)} className="text-red-400 hover:text-red-600 text-sm" title="Fermer">✕</button>
+        </div>
+      )}
+
       <Card noPadding>
         {loading ? (
           <div className="p-4 space-y-3">
@@ -402,7 +421,7 @@ export default function CollaborateursPage() {
                   {!u.actif && (
                     <Badge variant="danger">Inactif</Badge>
                   )}
-                  {u.id !== utilisateur.id && (
+                  {u.id !== utilisateur.id && peutGerer(u) && (
                     <>
                       {/* Modifier */}
                       <button
@@ -415,17 +434,15 @@ export default function CollaborateursPage() {
                         </svg>
                       </button>
                       {/* Changer le mot de passe */}
-                      {peutChangerMdp(u) && (
-                        <button
-                          onClick={() => ouvrirMdp(u)}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                          title="Changer le mot de passe"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                          </svg>
-                        </button>
-                      )}
+                      <button
+                        onClick={() => ouvrirMdp(u)}
+                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="Changer le mot de passe"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                      </button>
                       {/* Désactiver / Réactiver */}
                       <button
                         onClick={() => {

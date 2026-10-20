@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { envoyerEmail, templateInvitationUtilisateur } from '@/lib/email'
-import { verifierGestionnaireEquipe } from '@/lib/equipe-auth'
-import { PLANS, type Plan } from '@/types'
-
-const ROLES_CREABLES = ['secretaire', 'collaborateur', 'patron']
+import { verifierGestionnaireEquipe, verifierLimitePlan, ROLES_ATTRIBUABLES } from '@/lib/equipe-auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Un responsable de site ne crée pas d'administrateur
-    if (!ROLES_CREABLES.includes(role) || (!g.estAdmin && role === 'patron')) {
+    if (!ROLES_ATTRIBUABLES.includes(role) || (!g.estAdmin && role === 'patron')) {
       return NextResponse.json({ erreur: 'Rôle non autorisé' }, { status: 403 })
     }
 
@@ -40,19 +37,8 @@ export async function POST(request: NextRequest) {
       if (!site) return NextResponse.json({ erreur: 'Site invalide' }, { status: 400 })
     }
 
-    // Limite d'utilisateurs du plan
-    const { data: ent } = await admin.from('entreprises').select('plan').eq('id', entreprise_id).single()
-    const maxUsers = PLANS[(ent?.plan ?? 'starter') as Plan]?.max_utilisateurs ?? null
-    if (maxUsers !== null) {
-      const { count } = await admin
-        .from('utilisateurs')
-        .select('id', { count: 'exact', head: true })
-        .eq('entreprise_id', entreprise_id)
-        .eq('actif', true)
-      if ((count ?? 0) >= maxUsers) {
-        return NextResponse.json({ erreur: `Limite atteinte : votre plan autorise ${maxUsers} utilisateurs maximum.` }, { status: 403 })
-      }
-    }
+    const erreurLimite = await verifierLimitePlan(entreprise_id)
+    if (erreurLimite) return NextResponse.json({ erreur: erreurLimite }, { status: 403 })
 
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email: email.trim(),

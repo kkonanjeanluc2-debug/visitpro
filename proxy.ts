@@ -17,6 +17,7 @@ const ROUTES_LIMITEES: Record<string, { limit: number; windowSec: number }> = {
   '/api/auth/invite': { limit: 20, windowSec: 3600 },  // 20 invitations / heure
   '/api/sites':       { limit: 60, windowSec: 60   },  // 60 requêtes / minute
   '/api/equipe/mot-de-passe': { limit: 20, windowSec: 3600 },  // 20 changements / heure
+  '/api/equipe/utilisateur':  { limit: 60, windowSec: 60   },  // 60 modifications / minute
 }
 
 function verifierRateLimit(

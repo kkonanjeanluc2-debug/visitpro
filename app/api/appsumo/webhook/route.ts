@@ -21,7 +21,8 @@ function mapTier(tier: number): 'pro' | 'enterprise' {
 export async function POST(req: NextRequest) {
   // Sécurité via la clé dans l'URL (?key=...) — AppSumo n'envoie pas de header d'auth
   const urlKey = req.nextUrl.searchParams.get('key')
-  if (process.env.APPSUMO_API_KEY && urlKey !== process.env.APPSUMO_API_KEY) {
+  // Refus si la clé n'est pas configurée : sinon n'importe qui pourrait créer des licences
+  if (!process.env.APPSUMO_API_KEY || urlKey !== process.env.APPSUMO_API_KEY) {
     console.error('[appsumo webhook] clé URL invalide:', urlKey?.slice(0, 8))
     return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
   }
