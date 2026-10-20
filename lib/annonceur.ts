@@ -98,6 +98,10 @@ async function traiterFile() {
 
       const lecture = (async () => {
         if (!sonActif) return
+        // Une TV en veille peut avoir suspendu l'audio : on tente de le réveiller
+        if (audioCtx && audioCtx.state === 'suspended') {
+          try { await Promise.race([audioCtx.resume(), attendre(300)]) } catch { /* */ }
+        }
         if (a.carillon) await jouerCarillon()
         await parler(a.texte)
       })()

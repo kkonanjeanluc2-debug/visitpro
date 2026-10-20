@@ -61,16 +61,20 @@ const nextConfig = {
       },
     ],
   },
+  // Identifiant de version, identique côté client et serveur pour un même build.
+  // L'écran d'affichage se recharge quand il diffère (nouveau déploiement).
+  env: {
+    NEXT_PUBLIC_BUILD_STAMP: process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now()),
+  },
   async headers() {
     return [
       {
-        // Rechargement automatique de l'écran d'affichage toutes les 5 min.
-        // Fonctionne même avec l'ancien service worker ou sans JavaScript.
+        // Pas d'en-tête Refresh : un rechargement périodique coupe le son sur les
+        // TV connectées (le navigateur exige un geste pour réactiver l'audio).
         source: '/display/:token*',
         headers: [
           { key: 'Cache-Control', value: 'no-store, must-revalidate' },
           { key: 'Pragma',        value: 'no-cache' },
-          { key: 'Refresh',       value: '300' },
         ],
       },
     ]

@@ -146,7 +146,7 @@ async function handleDisplay(token: string) {
   console.log(`[display] ${entreprise.nom} | site=${siteId ?? 'global'} | visites=${visites.length} | err=${visitesError?.message ?? 'none'}`)
 
   return NextResponse.json(
-    { entreprise, visites, appels, _ts: Date.now() },
+    { entreprise, visites, appels, version: process.env.NEXT_PUBLIC_BUILD_STAMP ?? null, _ts: Date.now() },
     { headers: NO_CACHE_HEADERS }
   )
 }

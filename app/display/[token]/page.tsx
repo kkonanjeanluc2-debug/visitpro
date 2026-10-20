@@ -78,6 +78,33 @@ function memoriserAppelLu(id: string) {
   } catch { /* stockage indisponible : l'appel pourra être relu après rechargement */ }
 }
 const CLE_STOCKAGE_SON = 'visitpro-display-son'
+const CLE_STOCKAGE_RECHARGEMENT = 'visitpro-display-recharge-version'
+
+// Recharge la page dès qu'aucune annonce n'est en cours ou en attente
+let rechargementPrevu = false
+function rechargerQuandLibre() {
+  if (rechargementPrevu) return
+  rechargementPrevu = true
+  const tenter = () => {
+    if (estOccupe()) { setTimeout(tenter, 5_000); return }
+    window.location.reload()
+  }
+  tenter()
+}
+
+// Nouveau déploiement détecté : recharger pour obtenir le dernier code.
+// Au plus une fois toutes les 10 min (pendant un déploiement, d'anciens serveurs
+// peuvent encore répondre et provoquer des allers-retours de version).
+function rechargerSiNouvelleVersion(versionServeur: string | null | undefined) {
+  const versionLocale = process.env.NEXT_PUBLIC_BUILD_STAMP
+  if (!versionServeur || !versionLocale || versionServeur === versionLocale) return
+  try {
+    const dernier = Number(sessionStorage.getItem(CLE_STOCKAGE_RECHARGEMENT) ?? 0)
+    if (Date.now() - dernier < 10 * 60 * 1000) return
+    sessionStorage.setItem(CLE_STOCKAGE_RECHARGEMENT, String(Date.now()))
+  } catch { /* stockage indisponible : on recharge quand même */ }
+  rechargerQuandLibre()
+}
 
 export default function DisplayPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -119,15 +146,14 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
     return () => clearInterval(t)
   }, [])
 
-  // Rechargement automatique toutes les 5 min — garantit le dernier code déployé.
-  // Jamais pendant une annonce : on attend que la file soit vide.
+  // Rechargement de sécurité chaque nuit à 3 h (TV allumée plusieurs jours).
+  // Pas de rechargement périodique en journée : il couperait le son sur les TV connectées.
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout>
-    const tenter = () => {
-      if (estOccupe()) { t = setTimeout(tenter, 5_000); return }
-      window.location.reload()
-    }
-    t = setTimeout(tenter, 5 * 60 * 1000)
+    const maintenant = new Date()
+    const prochain = new Date(maintenant)
+    prochain.setHours(3, 0, 0, 0)
+    if (prochain <= maintenant) prochain.setDate(prochain.getDate() + 1)
+    const t = setTimeout(rechargerQuandLibre, prochain.getTime() - maintenant.getTime())
     return () => clearTimeout(t)
   }, [])
 
@@ -158,8 +184,9 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         setPollErreurs((n) => n + 1)
         return
       }
-      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[]; appels?: AppelDisplay[]; _ts: number } = await res.json()
+      const data: { entreprise: EntrepriseDisplay; visites: VisiteDisplay[]; appels?: AppelDisplay[]; version?: string | null; _ts: number } = await res.json()
       if (!mountedRef.current) return
+      rechargerSiNouvelleVersion(data.version)
       setPollErreurs(0)
       setEntreprise(data.entreprise)
       const sorted = [...data.visites].sort((a, b) => {
@@ -235,7 +262,7 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         chargerRef.current()
       })
       .on('broadcast', { event: 'force_reload' }, () => {
-        window.location.reload()
+        rechargerQuandLibre()
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
