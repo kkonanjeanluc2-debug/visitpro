@@ -58,6 +58,7 @@ export default function CollaborateursPage() {
   const supabase = createClient()
 
   const isResponsableSite = utilisateur?.permissions?.responsable_site === true && utilisateur?.role === 'collaborateur'
+  const peutChangerMdp = utilisateur?.role === 'patron' || utilisateur?.role === 'admin'
 
   const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([])
   const [loading, setLoading] = useState(true)
@@ -79,6 +80,15 @@ export default function CollaborateursPage() {
   const [editPerms, setEditPerms] = useState<UserPermissions>({})
   const [savingEdit, setSavingEdit] = useState(false)
   const [erreurEdit, setErreurEdit] = useState<string | null>(null)
+
+  // Modal changer le mot de passe
+  const [userMdp, setUserMdp] = useState<Utilisateur | null>(null)
+  const [nouveauMdp, setNouveauMdp] = useState('')
+  const [confirmMdp, setConfirmMdp] = useState('')
+  const [showNouveauMdp, setShowNouveauMdp] = useState(false)
+  const [savingMdp, setSavingMdp] = useState(false)
+  const [erreurMdp, setErreurMdp] = useState<string | null>(null)
+  const [succesMdp, setSuccesMdp] = useState(false)
 
   // Formulaire nouvel utilisateur
   const [nom, setNom] = useState('')
@@ -221,6 +231,53 @@ export default function CollaborateursPage() {
     charger()
   }
 
+  const ouvrirMdp = (u: Utilisateur) => {
+    setUserMdp(u)
+    setNouveauMdp('')
+    setConfirmMdp('')
+    setShowNouveauMdp(false)
+    setErreurMdp(null)
+    setSuccesMdp(false)
+  }
+
+  const fermerMdp = () => {
+    setUserMdp(null)
+    setNouveauMdp('')
+    setConfirmMdp('')
+  }
+
+  const changerMotDePasse = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!userMdp) return
+    if (nouveauMdp.length < 8) {
+      setErreurMdp('Le mot de passe doit contenir au moins 8 caractères')
+      return
+    }
+    if (nouveauMdp !== confirmMdp) {
+      setErreurMdp('Les deux mots de passe ne correspondent pas')
+      return
+    }
+
+    setSavingMdp(true)
+    setErreurMdp(null)
+    try {
+      const response = await fetch('/api/equipe/mot-de-passe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userMdp.id, password: nouveauMdp }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.erreur ?? 'Erreur lors du changement de mot de passe')
+      setSuccesMdp(true)
+      setNouveauMdp('')
+      setConfirmMdp('')
+    } catch (err) {
+      setErreurMdp(err instanceof Error ? err.message : 'Erreur lors du changement de mot de passe')
+    } finally {
+      setSavingMdp(false)
+    }
+  }
+
   const toggleActif = async (userId: string, actif: boolean) => {
     await supabase
       .from('utilisateurs')
@@ -354,6 +411,18 @@ export default function CollaborateursPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                       </button>
+                      {/* Changer le mot de passe */}
+                      {peutChangerMdp && (
+                        <button
+                          onClick={() => ouvrirMdp(u)}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Changer le mot de passe"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                          </svg>
+                        </button>
+                      )}
                       {/* Désactiver / Réactiver */}
                       <button
                         onClick={() => {
@@ -470,6 +539,76 @@ export default function CollaborateursPage() {
             </p>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal changer le mot de passe */}
+      <Modal
+        isOpen={!!userMdp}
+        onClose={fermerMdp}
+        title={`Mot de passe — ${userMdp ? nomComplet(userMdp.nom, userMdp.prenom) : ''}`}
+        footer={
+          succesMdp ? (
+            <Button onClick={fermerMdp} size="sm">Fermer</Button>
+          ) : (
+            <>
+              <button onClick={fermerMdp} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+                Annuler
+              </button>
+              <Button onClick={(e) => changerMotDePasse(e as unknown as React.FormEvent)} loading={savingMdp} size="sm">
+                Changer le mot de passe
+              </Button>
+            </>
+          )
+        }
+      >
+        {succesMdp ? (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-700">
+              Le mot de passe a été modifié. Communiquez-le à {userMdp?.prenom} : il servira dès sa prochaine connexion.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={changerMotDePasse} className="space-y-4">
+            {erreurMdp && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{erreurMdp}</p>
+              </div>
+            )}
+            <div className="relative">
+              <Input
+                label="Nouveau mot de passe *"
+                type={showNouveauMdp ? 'text' : 'password'}
+                value={nouveauMdp}
+                onChange={(e) => setNouveauMdp(e.target.value)}
+                placeholder="Au moins 8 caractères"
+                autoComplete="new-password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowNouveauMdp(!showNouveauMdp)}
+                className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
+                title={showNouveauMdp ? 'Masquer' : 'Afficher'}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            </div>
+            <Input
+              label="Confirmer le mot de passe *"
+              type={showNouveauMdp ? 'text' : 'password'}
+              value={confirmMdp}
+              onChange={(e) => setConfirmMdp(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+            <p className="text-xs text-gray-500">
+              L&apos;ancien mot de passe ne fonctionnera plus. Le collaborateur pourra ensuite le changer depuis la page Sécurité.
+            </p>
+          </form>
+        )}
       </Modal>
 
       {/* Modal créer utilisateur */}

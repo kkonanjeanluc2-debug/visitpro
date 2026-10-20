@@ -16,6 +16,7 @@ const ROUTES_LIMITEES: Record<string, { limit: number; windowSec: number }> = {
   '/api/sms':         { limit: 10, windowSec: 60   },  // 10 SMS / minute (coût !)
   '/api/auth/invite': { limit: 20, windowSec: 3600 },  // 20 invitations / heure
   '/api/sites':       { limit: 60, windowSec: 60   },  // 60 requêtes / minute
+  '/api/equipe/mot-de-passe': { limit: 20, windowSec: 3600 },  // 20 changements / heure
 }
 
 function verifierRateLimit(
