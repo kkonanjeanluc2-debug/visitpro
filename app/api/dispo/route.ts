@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-function buildSupabase() {
-  const cookieStore = cookies()
+async function buildSupabase() {
+  const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,7 +24,7 @@ const STATUTS_VALIDES = ['disponible', 'en_reunion', 'ne_pas_deranger', 'absent'
 
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = buildSupabase()
+    const supabase = await buildSupabase()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ erreur: 'Non authentifié' }, { status: 401 })
 

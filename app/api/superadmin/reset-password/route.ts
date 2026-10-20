@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: Request) {
   // Vérifier que l'appelant est bien superadmin
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 

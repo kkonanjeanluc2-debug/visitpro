@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 
 // Endpoint de diagnostic : vérifie la config push pour l'utilisateur connecté
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   const vapidPublic  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY

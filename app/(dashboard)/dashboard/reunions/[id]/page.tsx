@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { use, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -26,8 +26,8 @@ const STATUT_ACTIONS: Partial<Record<StatutReunion, { label: string; nextStatut:
   en_cours:  { label: 'Terminer la réunion', nextStatut: 'terminee', cls: 'bg-gray-700 hover:bg-gray-800 text-white' },
 }
 
-export default function ReunionDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default function ReunionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { utilisateur } = useAuth()
   const router = useRouter()
   const [reunion, setReunion] = useState<Reunion | null>(null)

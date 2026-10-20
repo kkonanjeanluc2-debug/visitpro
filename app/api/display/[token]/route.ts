@@ -127,10 +127,10 @@ async function handleDisplay(token: string) {
   )
 }
 
-export async function GET(_req: Request, { params }: { params: { token: string } }) {
-  return handleDisplay(params.token)
+export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+  return handleDisplay((await params).token)
 }
 
-export async function POST(_req: Request, { params }: { params: { token: string } }) {
-  return handleDisplay(params.token)
+export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+  return handleDisplay((await params).token)
 }

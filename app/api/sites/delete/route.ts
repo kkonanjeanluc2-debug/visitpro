@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify caller is authorized
-    const supabaseUser = createClient()
+    const supabaseUser = await createClient()
     const { data: { user } } = await supabaseUser.auth.getUser()
     if (!user) {
       return NextResponse.json({ erreur: 'Non authentifié' }, { status: 401 })

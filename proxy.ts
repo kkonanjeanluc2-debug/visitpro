@@ -54,7 +54,7 @@ function verifierRateLimit(
 
 // ─── Middleware principal ─────────────────────────────────────────────────────
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // ── Routes API : rate limiting uniquement, pas de vérification auth ──────

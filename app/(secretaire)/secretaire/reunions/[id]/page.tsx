@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { use, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -30,8 +30,8 @@ const STATUT_POINT_CLS: Record<string, string> = {
   reporte:   'bg-amber-50 text-amber-600',
 }
 
-export default function ReunionDetailSecretairePage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default function ReunionDetailSecretairePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { utilisateur } = useAuth()
   const router = useRouter()
   const [reunion, setReunion] = useState<Reunion | null>(null)

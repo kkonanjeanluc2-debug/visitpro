@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { use, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
@@ -10,8 +10,8 @@ import type { Reunion, CompteRendu, Entreprise } from '@/types'
 import CompteRenduForm from '@/components/reunions/CompteRenduForm'
 import ReunionBadge from '@/components/reunions/ReunionBadge'
 
-export default function CompteRenduSecretairePage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default function CompteRenduSecretairePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { utilisateur } = useAuth()
   const router = useRouter()
   const [reunion, setReunion] = useState<Reunion | null>(null)

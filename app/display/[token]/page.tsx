@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { use, useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface VisiteDisplay {
@@ -145,8 +145,8 @@ function parlerTTS(texte: string) {
   setTimeout(useFallback, 1500)
 }
 
-export default function DisplayPage({ params }: { params: { token: string } }) {
-  const token = params.token
+export default function DisplayPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params)
 
   const [entreprise, setEntreprise] = useState<EntrepriseDisplay | null>(null)
   const [visites, setVisites] = useState<VisiteDisplay[]>([])

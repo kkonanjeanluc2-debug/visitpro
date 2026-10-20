@@ -6,7 +6,7 @@ import { genererPdfRapport } from '@/lib/pdf-rapport'
 
 // Endpoint de diagnostic : génère le PDF et le retourne directement en téléchargement
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 

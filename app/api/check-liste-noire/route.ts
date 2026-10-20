@@ -4,7 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     // Auth requise — rôle secrétaire minimum
-    const userClient = createClient()
+    const userClient = await createClient()
     const { data: { user } } = await userClient.auth.getUser()
     if (!user) {
       return NextResponse.json({ erreur: 'Non authentifié' }, { status: 401 })

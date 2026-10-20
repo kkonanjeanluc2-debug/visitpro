@@ -10,7 +10,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import ThemeProvider from '@/components/providers/ThemeProvider'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')

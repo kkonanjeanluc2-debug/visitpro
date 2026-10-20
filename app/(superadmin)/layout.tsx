@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import SuperAdminSidebar from '@/components/superadmin/SuperAdminSidebar'
 
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
